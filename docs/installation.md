@@ -1,143 +1,62 @@
 # Installation
 
-**Step-by-step guides, copy & paste from top to bottom:**
+## Install (Linux)
 
-| System | Guide |
-|---|---|
-| Debian 12+ / Ubuntu 22.04+ | [deploy-debian.md](deploy-debian.md) |
-| RHEL / Rocky / AlmaLinux 8–9 | [deploy-rhel.md](deploy-rhel.md) |
-| openSUSE Leap / SLES 15 | [deploy-suse.md](deploy-suse.md) |
-| Windows Server 2019+ (IIS) | [deploy-windows.md](deploy-windows.md) |
-| Any OS with Docker | [Docker Compose](#docker-compose) |
-| Other Linux (Arch, Alpine, …) | [Other distributions](#other-distributions) |
-
-Each guide follows the same order: **packages → database → `git clone` → `.env` → service →
-web server → HTTPS → cron → first login.** The configuration files the guides use are in
-[`deploy/`](../deploy) (systemd unit, Apache / nginx / IIS configs, cron jobs).
-
-**Automatic alternative (Linux):** [`deploy/install.sh`](../deploy/install.sh) performs the
-same steps after asking a few questions:
+Works on **Debian 11+, Ubuntu 20.04+, RHEL / Rocky / AlmaLinux / CentOS Stream 8+, Fedora,
+openSUSE / SLES 15**. You need root, and a DNS name such as `dmarc.example.com` pointing to the server.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/DuprTECH/DMARCula---DMARC-Anylzer/main/deploy/install.sh -o install.sh
 sudo bash install.sh
 ```
 
-The rest of this page is reference material: how it runs, sizing, web server variants,
-hosting panels, Docker, updating and troubleshooting.
+The installer asks for:
+- the host name,
+- Apache or nginx,
+- whether to get a Let's Encrypt certificate,
+- the admin password (or generates one),
+- an optional e-mail address for alerts.
 
-- [How it runs](#how-it-runs)
-- [Requirements and sizing](#requirements-and-sizing)
-- [Apache reference](#apache-reference) (Let's Encrypt, own certificate, existing `public_html` vhost, EL)
-- [nginx instead of Apache](#nginx-instead-of-apache)
-- [Hosting panels and `public_html`](#hosting-panels-and-public_html)
-- [Docker Compose](#docker-compose)
-- [Other distributions](#other-distributions)
-- [Updating](#updating)
-- [Troubleshooting](#troubleshooting)
+Then it does everything else:
 
-## How it runs
+| | |
+|---|---|
+| packages | Python, Git, MariaDB, Apache or nginx, certbot, cron |
+| database | MariaDB database `dmarcula` and a user with a random password |
+| application | `git clone` into `/home/dmarc/dmarcula` (`/opt/dmarcula` on RHEL), Python venv, `.env` with a random `SECRET_KEY` |
+| service | systemd unit `dmarcula` on `127.0.0.1:8000` |
+| web server | virtual host for your name, firewall ports, SELinux boolean, HTTPS |
+| cron | daily DB backup to `/var/backups/dmarcula`, weekly cleanup of reports older than 2 years, mailbox alerts |
 
-DMARCula is a Python (FastAPI) application. Unlike a PHP site, it does **not** live in a web
-root. It runs as a long-lived process (a systemd service) that serves the UI on
-`127.0.0.1:8000` and also polls the report mailbox every few minutes. Your web server
-(nginx or Apache) terminates HTTPS and forwards requests to it:
+At the end it prints the URL and the admin password. Then:
+1. sign in and add the report mailbox: *Administrácia → Poštové schránky* ([Microsoft 365 setup](microsoft-365.md)),
+2. optionally enable LDAP or SSO in `.env` ([Authentication](authentication.md)).
 
-```
-browser ──HTTPS──► nginx / Apache :443 ──HTTP──► DMARCula (uvicorn) 127.0.0.1:8000 ──► MariaDB
-                                                     └── every 15 min: Exchange Online / IMAP mailbox
-```
+**Update:** run the installer again: `sudo bash /home/dmarc/dmarcula/deploy/install.sh` (`/opt/dmarcula/…` on RHEL).
+It detects the installation, pulls the new version and restarts the service.
 
-> **Never put the application into `public_html` or any other web root.** Everything there can
-> be downloaded over HTTP, including `.env` (secret key, LDAP and database passwords) and the
-> source code. Install it next to the web root, for example `/home/dmarc/dmarcula`, or under `/opt/dmarcula`.
+> **Never install into `public_html`** or any other web root, because `.env` with the passwords would become downloadable.
+> The application runs as a service, and the web server only forwards requests to it.
 
-Run **one** application process only (no `--workers N`, no multiple replicas). The scheduler that
-polls mailboxes runs inside the process.
+## Special cases
 
-## Requirements and sizing
+**Existing site / hosting panel.** If a virtual host for the name already exists (e.g. with
+`DocumentRoot /home/dmarc/public_html`), or a panel such as Virtualmin, HestiaCP or ISPConfig is
+detected, the installer leaves the web server alone and prints these lines. Add them to the existing
+`<VirtualHost *:443>` (in a panel: the site's custom Apache directives) and empty `public_html`:
 
-| | Minimum | 100–200 domains |
-|---|---|---|
-| Python | 3.10+ | 3.11 / 3.12 |
-| CPU / RAM | 1 vCPU / 1 GB | 2 vCPU / 2–4 GB |
-| Database | SQLite (built in) | **MariaDB 10.6+** (or PostgreSQL 14+) |
-| Disk | 1 GB | ~2–8 GB per year of reports (less with [pruning](operations.md#data-retention)) |
-
-Rough data volume: each domain that sends mail receives about 2–6 aggregate reports per day.
-With 140 domains, that's about 500–800 reports and 5–20 thousand records per day, or a few
-million records per year. SQLite copes with that, but MariaDB gives you concurrent access,
-standard backups and room to grow.
-
-Network access needed from the server:
-
-- outbound HTTPS to `login.microsoftonline.com` and `graph.microsoft.com` (or your IMAP server),
-- DNS (UDP/TCP 53) for SPF, DKIM and DMARC checks, and outbound HTTPS to `mta-sts.<domain>`,
-- inbound HTTPS from your users.
-
-Users' browsers load the chart library from `cdn.jsdelivr.net`
-(see [offline environments](#troubleshooting)).
-
-## Apache reference
-
-DMARCula needs its **own host name** (e.g. `dmarc.example.com`). It can't be served from a
-sub-path like `https://example.com/dmarc/`. Apache only forwards requests to
-`127.0.0.1:8000` and doesn't serve any files itself.
-
-### Debian / Ubuntu
-
-**1. Install and enable modules**
-
-```bash
-sudo apt install -y apache2 certbot python3-certbot-apache
-sudo a2enmod proxy proxy_http headers ssl rewrite http2
-sudo systemctl restart apache2
+```apache
+ProxyPreserveHost On
+ProxyPass        / http://127.0.0.1:8000/ timeout=120
+ProxyPassReverse / http://127.0.0.1:8000/
+RequestHeader set X-Forwarded-Proto "https" env=HTTPS
 ```
 
-**2. HTTP virtual host.** Certbot needs it to obtain the certificate, and afterwards it
-redirects to HTTPS:
+**Internal name / company certificate.** Answer `no` to Let's Encrypt and replace
+`/etc/apache2/sites-available/dmarcula.conf` with the following. On RHEL the file is
+`/etc/httpd/conf.d/dmarcula.conf`. Comments must stay on their own lines; Apache rejects comments after a directive.
 
-```bash
-sudo tee /etc/apache2/sites-available/dmarcula.conf >/dev/null <<'EOF'
-<VirtualHost *:80>
-    ServerName dmarc.example.com
-
-    ProxyPreserveHost On
-    ProxyRequests Off
-    ProxyPass        / http://127.0.0.1:8000/ timeout=120
-    ProxyPassReverse / http://127.0.0.1:8000/
-
-    ErrorLog  ${APACHE_LOG_DIR}/dmarcula-error.log
-    CustomLog ${APACHE_LOG_DIR}/dmarcula-access.log combined
-</VirtualHost>
-EOF
-
-sudo a2ensite dmarcula
-sudo apache2ctl configtest && sudo systemctl reload apache2
-```
-
-**3a. HTTPS with Let's Encrypt (public DNS name).** Certbot creates
-`/etc/apache2/sites-available/dmarcula-le-ssl.conf` with the proxy settings, adds the
-HTTP → HTTPS redirect, and renews the certificate automatically through a systemd timer:
-
-```bash
-sudo certbot --apache -d dmarc.example.com --redirect
-```
-
-Then add the forwarded-protocol header and HSTS to the generated HTTPS vhost (inside
-`<VirtualHost *:443>`):
-
-```bash
-sudo sed -i 's|ProxyPassReverse / http://127.0.0.1:8000/|&\n    RequestHeader set X-Forwarded-Proto "https"\n    Header always set Strict-Transport-Security "max-age=31536000"\n    LimitRequestBody 62914560|' \
-  /etc/apache2/sites-available/dmarcula-le-ssl.conf
-sudo apache2ctl configtest && sudo systemctl reload apache2
-```
-
-**3b. HTTPS with your own certificate (internal CA / commercial).** Replace the whole file
-instead of running certbot:
-
-```bash
-sudo tee /etc/apache2/sites-available/dmarcula.conf >/dev/null <<'EOF'
+```apache
 <VirtualHost *:80>
     ServerName dmarc.example.com
     RewriteEngine On
@@ -146,206 +65,55 @@ sudo tee /etc/apache2/sites-available/dmarcula.conf >/dev/null <<'EOF'
 
 <VirtualHost *:443>
     ServerName dmarc.example.com
-    Protocols h2 http/1.1
-
     SSLEngine on
-    # certificate incl. intermediates, and its private key
     SSLCertificateFile    /etc/ssl/dmarcula/fullchain.pem
     SSLCertificateKeyFile /etc/ssl/dmarcula/privkey.pem
-
     ProxyPreserveHost On
-    ProxyRequests Off
     ProxyPass        / http://127.0.0.1:8000/ timeout=120
     ProxyPassReverse / http://127.0.0.1:8000/
     RequestHeader set X-Forwarded-Proto "https"
-
-    Header always set Strict-Transport-Security "max-age=31536000"
-    # 60 MB – manual report uploads
     LimitRequestBody 62914560
-
-    ErrorLog  ${APACHE_LOG_DIR}/dmarcula-error.log
-    CustomLog ${APACHE_LOG_DIR}/dmarcula-access.log combined
 </VirtualHost>
-EOF
-
-sudo install -d -m 750 /etc/ssl/dmarcula
-# copy fullchain.pem and privkey.pem there, then:
-sudo chmod 640 /etc/ssl/dmarcula/privkey.pem
-sudo apache2ctl configtest && sudo systemctl reload apache2
 ```
-
-**4. Finish:** set `COOKIE_SECURE=true` and `BASE_URL=https://dmarc.example.com` in `.env`,
-then `sudo systemctl restart dmarcula`. Open the firewall if needed: `sudo ufw allow 'Apache Full'`.
-
-**Check:**
 
 ```bash
-curl -sI https://dmarc.example.com/login | head -5          # HTTP/2 200
-curl -s  https://dmarc.example.com/healthz                  # {"status":"ok"}
-sudo tail -f /var/log/apache2/dmarcula-error.log            # proxy errors (503 = app not running)
+a2enmod ssl rewrite headers proxy proxy_http && apache2ctl configtest && systemctl restart apache2
+sed -i -e 's|^BASE_URL=.*|BASE_URL=https://dmarc.example.com|' -e 's|^COOKIE_SECURE=.*|COOKIE_SECURE=true|' /home/dmarc/dmarcula/.env
+systemctl restart dmarcula
 ```
 
-### Optional: allow only the internal network
+**Docker (any OS):** `cp .env.example .env`, set `SECRET_KEY`, `ADMIN_PASSWORD` and `BASE_URL`,
+then run `docker compose up -d --build`. It starts the app with PostgreSQL on port 8000.
 
-DMARCula has its own login, but you can also hide it from the internet. Add this inside the
-`<VirtualHost *:443>` block:
+**Windows Server:** install Python 3.12, Git and MariaDB, then `git clone` the repository and run
+`py -3.12 -m venv .venv` and `.venv\Scripts\pip install -r requirements.txt`. Copy `.env.example`
+to `.env` and edit it. Run `.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000` as a
+service with [NSSM](https://nssm.cc/), and put IIS (URL Rewrite + ARR) in front with
+[`deploy/iis/web.config`](../deploy/iis/web.config). The backup script is in [`deploy/windows/`](../deploy/windows).
 
-```apache
-<Location />
-    Require ip 10.0.0.0/8 192.168.0.0/16 203.0.113.10
-</Location>
-```
+**Manual install (other Linux):** the templates in [`deploy/`](../deploy) (systemd unit,
+Apache / nginx vhost, cron jobs) contain `__PLACEHOLDERS__` and follow the same steps as
+[`install.sh`](../deploy/install.sh), which documents each step in its comments.
 
-If you use SSO, the browser only needs to reach Entra ID, so the app may stay internal-only.
-Microsoft never connects to the app.
+## Requirements
 
-### Existing site with `DocumentRoot /home/dmarc/public_html`
-
-If the host name already has a vhost (e.g. created by a hosting panel) whose document root is
-`/home/dmarc/public_html`, you don't need a new vhost. Add the proxy lines **inside the
-existing `<VirtualHost *:443>`** (and the `*:80` one, or redirect it to HTTPS):
-
-```apache
-    ProxyPreserveHost On
-    ProxyRequests Off
-    ProxyPass        / http://127.0.0.1:8000/ timeout=120
-    ProxyPassReverse / http://127.0.0.1:8000/
-    RequestHeader set X-Forwarded-Proto "https"
-```
-
-`ProxyPass /` takes precedence over the document root, so nothing from `public_html` is served
-any more. Empty the folder anyway. On panels, put these lines into the panel's "custom Apache
-directives" field for the site, otherwise the panel overwrites manual edits.
-
-### RHEL / Rocky / AlmaLinux
-
-```bash
-sudo dnf install -y httpd mod_ssl
-sudo setsebool -P httpd_can_network_connect 1        # SELinux: allow Apache to connect to 127.0.0.1:8000
-sudo systemctl enable --now httpd
-```
-
-The configuration is the same as above, but:
-- the file goes to `/etc/httpd/conf.d/dmarcula.conf` (no `a2ensite`; every `*.conf` there is loaded),
-- `${APACHE_LOG_DIR}` → `/var/log/httpd`,
-- `mod_proxy`, `mod_headers`, `mod_rewrite` and `mod_http2` are enabled by default,
-- check with `sudo apachectl configtest`, reload with `sudo systemctl reload httpd`,
-- Let's Encrypt: `sudo dnf install -y epel-release && sudo dnf install -y certbot python3-certbot-apache`,
-- firewall: `sudo firewall-cmd --permanent --add-service=http --add-service=https && sudo firewall-cmd --reload`.
-
-### Common Apache problems
-
-Apache allows comments only on their own line. `Directive value   # comment` is a syntax error.
-
-| Symptom | Fix |
-|---|---|
-| `500 Internal Server Error` page from Apache, log shows `AH01144: No protocol handler was valid for the URL` | `mod_proxy_http` is missing: `a2enmod proxy_http && systemctl restart apache2` (a newly enabled module needs a **restart**, not a reload) |
-| After enabling the site, **every** HTTPS site shows an SSL error, or `http://dmarc…` lands on another site | another vhost is bound to a host name or IP (`<VirtualHost syslog.example.com:443>`, `<VirtualHost 10.0.0.5:80>`). Apache resolves it to the server IP, and IP-bound vhosts take precedence over all `*:80` / `*:443` vhosts. Use `<VirtualHost *:80>` / `<VirtualHost *:443>` everywhere and check with `apache2ctl -S`. |
-| `SSLCertificateFile: file … does not exist or is empty` | a vhost references a missing certificate. `configtest` fails and **no** change gets loaded until it's fixed |
-| A `*:443` vhost without `SSLEngine on` | that site is served unencrypted on port 443 (browser: `ERR_SSL_PROTOCOL_ERROR`). Every `*:443` vhost needs `SSLEngine on` and a certificate |
-| `503 Service Unavailable` | The app isn't running: `systemctl status dmarcula`. On EL, also run `setsebool -P httpd_can_network_connect 1`. |
-| `Invalid command 'ProxyPass'` | `sudo a2enmod proxy proxy_http` |
-| `Invalid command 'RequestHeader'` / `'Header'` | `sudo a2enmod headers` |
-| Login loops back to the login page | `COOKIE_SECURE=true` while the site is served over plain HTTP. Enable HTTPS, or set `false` temporarily. |
-| SSO error after Microsoft login | `BASE_URL` must be the exact public `https://` URL, and the redirect URI in Entra ID must match it. |
-| Upload fails with `413` | Raise `LimitRequestBody` (bytes). |
-
-## nginx instead of Apache
-
-In step 6 of the Linux guides, use the nginx template instead of the Apache one:
-
-```bash
-apt install -y nginx certbot python3-certbot-nginx          # dnf / zypper on other systems
-cd "$APP_DIR"
-sed -e "s|__HOST__|$DMARC_HOST|g" -e "s|__PORT__|8000|g" deploy/nginx/dmarcula.conf \
-    > /etc/nginx/sites-available/dmarcula                   # EL: /etc/nginx/conf.d/dmarcula.conf, SUSE: /etc/nginx/vhosts.d/dmarcula.conf
-ln -s /etc/nginx/sites-available/dmarcula /etc/nginx/sites-enabled/     # Debian/Ubuntu only
-nginx -t && systemctl reload nginx
-certbot --nginx -d "$DMARC_HOST" --redirect
-```
-
-On EL, also run `setsebool -P httpd_can_network_connect 1`.
-
-## Hosting panels and `public_html`
-
-If the server is managed by a panel (Virtualmin, ISPConfig, HestiaCP, CloudPanel…) and the
-site's document root is `/home/dmarc/public_html`, follow these rules:
-
-1. Install the application **outside** `public_html` (e.g. `/home/dmarc/dmarcula`) with steps 1–5 of the guide for your system.
-2. Run it as a systemd service, which needs root once. Most panels let the admin add custom
-   services. Without root and without systemd, the app cannot run reliably, because the
-   mailbox polling stops whenever the process is not running.
-3. Point the website at the app with a reverse proxy:
-   - **Panels with a proxy option** (Virtualmin *Proxy paths*, HestiaCP / CloudPanel *reverse
-     proxy* templates, ISPConfig *Apache directives*): proxy `/` to `http://127.0.0.1:8000/`.
-   - **Apache with only `.htaccess` available**: put this into `public_html/.htaccess`. It
-     requires `mod_proxy`, `mod_proxy_http` and `mod_rewrite`, which the server admin must
-     enable:
-
-     ```apache
-     RewriteEngine On
-     RewriteRule ^(.*)$ http://127.0.0.1:8000/$1 [P,L]
-     ```
-4. Leave nothing else in `public_html`.
-
-Shared hosting with "Setup Python App" (cPanel / Passenger) is **not** supported. Passenger
-stops idle apps, so the mailbox scheduler doesn't run.
-
-## Docker Compose
-
-Docker Compose runs the app together with PostgreSQL:
-
-```bash
-sudo apt install -y docker.io docker-compose-plugin     # or Docker CE from docker.com
-git clone https://github.com/DuprTECH/DMARCula---DMARC-Anylzer.git dmarcula && cd dmarcula
-cp .env.example .env          # set SECRET_KEY, ADMIN_PASSWORD, BASE_URL, POSTGRES_PASSWORD
-docker compose up -d --build
-```
-
-To use an existing MariaDB instead, remove the `db` service from `docker-compose.yml` and set
-`DATABASE_URL=mysql+pymysql://dmarcula:…@<host>:3306/dmarcula` in `.env`. Then put the same
-nginx or Apache proxy in front of port 8000.
-
----
-
-## Other distributions
-
-The steps of [deploy-debian.md](deploy-debian.md) apply to any systemd-based Linux. Only the
-package names and paths differ:
-
-| Distribution | Packages (step 1) | Notes |
-|---|---|---|
-| Arch Linux | `pacman -S python git mariadb apache certbot certbot-apache cronie` | before step 2: `mariadb-install-db --user=mysql --basedir=/usr --datadir=/var/lib/mysql`; enable `mod_proxy`, `mod_proxy_http`, `mod_headers` in `/etc/httpd/conf/httpd.conf` and `Include conf/extra/dmarcula.conf` |
-| Fedora | `dnf install python3 git mariadb-server httpd mod_ssl cronie certbot python3-certbot-apache` | as [RHEL](deploy-rhel.md), no EPEL needed |
-| Alpine (OpenRC, no systemd) | `apk add python3 py3-pip git mariadb mariadb-client apache2 apache2-proxy certbot` | `/etc/init.d/mariadb setup`; run the app with an OpenRC service instead of systemd, or use Docker |
-| Any distro with Python < 3.10 | install [uv](https://docs.astral.sh/uv/), then in step 3 use `uv venv --seed --python 3.12 .venv` | uv downloads a private Python 3.12 |
-
-## Updating
-
-```bash
-cd /home/dmarc/dmarcula
-sudo -u dmarc git pull
-sudo -u dmarc .venv/bin/pip install -r requirements.txt
-sudo systemctl restart dmarcula
-```
-
-Schema changes are applied automatically at startup: new tables, columns and indexes are
-created and new columns are backfilled. Back up the database before upgrading.
-
-Backups, data retention, monitoring and logs: see [Operations](operations.md).
+- Python 3.10+ (the installer fetches 3.12 automatically if the system Python is older)
+- MariaDB 10.5+ (or PostgreSQL / SQLite), 2 GB RAM for 100+ domains, about 2–8 GB of disk per year
+- outbound HTTPS to `login.microsoftonline.com` / `graph.microsoft.com` and outbound DNS
+- a single application process (the mailbox scheduler runs inside it)
 
 ## Troubleshooting
 
-| Symptom | Cause / fix |
+| Symptom | Fix |
 |---|---|
-| Service fails: `SECRET_KEY must be set` | Set `SECRET_KEY` (16+ characters) in `.env`. |
-| `Access denied for user 'dmarcula'@'localhost'` | Wrong password in `DATABASE_URL`, or the user was created for a different host. Special characters in the password must be URL-encoded. |
-| `ModuleNotFoundError: pymysql` | Run `pip install -r requirements.txt` inside `.venv`. |
-| `SyntaxError` / `TypeError: unsupported operand type(s) for \|` at startup | Python is older than 3.10. |
-| nginx `502 Bad Gateway` | Service not running (`systemctl status dmarcula`). On EL, run `setsebool -P httpd_can_network_connect 1`. |
-| Cannot log in after the first start | `ADMIN_PASSWORD` was empty on the first start. Set it, drop and recreate the (empty) database, and restart. |
-| DNS checks are slow | The first system resolver doesn't answer. Set `DNS_SERVERS=1.1.1.1,8.8.8.8`. |
-| Domain shows **no SPF / DMARC / DKIM** although they exist (grade F), or the message *"Reporty … potvrdzujú verejný DMARC záznam … split-horizon"* | The server uses internal DNS servers with an internal copy of your zone (typical with Active Directory DNS), which doesn't contain the public TXT records. Set `DNS_SERVERS=1.1.1.1,8.8.8.8` in `.env`, run `systemctl restart dmarcula`, then *Domény → Skontrolovať DNS*. Check that the server may query external DNS: `dig @1.1.1.1 example.com TXT +short`. |
-| SSO: "SSO prihlásenie zlyhalo" | The redirect URI must be exactly `BASE_URL` + `/auth/oidc/callback`. |
-| Mailbox errors | See [Microsoft 365 setup → troubleshooting](microsoft-365.md#troubleshooting). Details are in *Administrácia → Poštové schránky → Log*. |
-| No charts in an offline network | Download `https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js` to `app/static/js/` and point the `<script>` in `app/templates/base.html` to `/static/js/echarts.min.js`. The world map stays unavailable offline. |
+| Domains show **no SPF / DMARC / DKIM** although they exist | The server's DNS has an internal copy of your zones (Active Directory). Keep `DNS_SERVERS=1.1.1.1,8.8.8.8` in `.env` (the default), restart, and run *Domény → Skontrolovať DNS*. Test with `dig @1.1.1.1 TXT _dmarc.example.com +short`. |
+| Apache `500`, log shows `AH01144: No protocol handler` | `a2enmod proxy_http && systemctl restart apache2` |
+| After enabling the site, **every** HTTPS site has an SSL error | Another vhost is bound to a host name or IP (`<VirtualHost syslog.example.com:443>`). Change all of them to `*:80` / `*:443`, and check with `apache2ctl -S`. |
+| `apache2ctl configtest` fails | Nothing new is loaded until it passes. Typical causes: a missing certificate file, or a comment after a directive. |
+| `502` / `503` from the web server | `systemctl status dmarcula`, `journalctl -u dmarcula -n 50`. On RHEL: `setsebool -P httpd_can_network_connect 1`. |
+| Login keeps returning to the login page | `COOKIE_SECURE=true` while the site runs over plain HTTP. Enable HTTPS or set it to `false`. |
+| SSO error after the Microsoft sign-in | `BASE_URL` must be the exact public `https://` URL, and the Entra redirect URI must be `BASE_URL/auth/oidc/callback`. |
+| Forgotten admin password | `cd /home/dmarc/dmarcula && runuser -u dmarc -- .venv/bin/python -m app.manage set-password admin` |
+| Mailbox errors | *Administrácia → Poštové schránky → Log*, and [Microsoft 365 setup → troubleshooting](microsoft-365.md#troubleshooting) |
+
+Backups, cron jobs, logs and maintenance commands: [Operations](operations.md).

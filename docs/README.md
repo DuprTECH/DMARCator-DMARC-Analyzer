@@ -2,8 +2,7 @@
 
 | Document | Audience | Contents |
 |---|---|---|
-| **Deploy step by step** | server admin | [Debian / Ubuntu](deploy-debian.md) · [RHEL / Rocky / Alma](deploy-rhel.md) · [openSUSE / SLES](deploy-suse.md) · [Windows Server](deploy-windows.md) |
-| [Installation reference](installation.md) | server admin | how it runs, sizing, Apache variants (own certificate, existing `public_html` site), nginx, hosting panels, Docker, other distros, updating, troubleshooting |
+| [Installation](installation.md) | server admin | one-command installer, update, existing site / company certificate, Docker, Windows, troubleshooting |
 | [Configuration](configuration.md) | server admin | every environment variable, database URLs, mailbox settings |
 | [Authentication](authentication.md) | identity admin | local accounts, LDAP / Active Directory, SSO with Entra ID and other OIDC providers, roles |
 | [Operations](operations.md) | server admin | cron jobs, maintenance commands, backups, data retention, monitoring, logs, certificates |

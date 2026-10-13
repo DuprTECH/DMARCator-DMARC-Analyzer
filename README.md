@@ -29,36 +29,22 @@ It's inspired by dmarcian, Valimail, EasyDMARC and parsedmarc.
 
 ## Installation
 
-Pick your operating system. Each guide is a numbered list of commands to copy and paste,
-always in the same order:
-
-**1. packages → 2. database (MariaDB) → 3. `git clone` + Python → 4. configuration (`.env`) →
-5. service → 6. web server (Apache / IIS) → 7. HTTPS → 8. cron / scheduled tasks → 9. first login**
-
-| Operating system | Step-by-step guide |
-|---|---|
-| **Debian 12+ / Ubuntu 22.04+** | [docs/deploy-debian.md](docs/deploy-debian.md) |
-| **RHEL / Rocky Linux / AlmaLinux 8–9** | [docs/deploy-rhel.md](docs/deploy-rhel.md) |
-| **openSUSE Leap / SLES 15** | [docs/deploy-suse.md](docs/deploy-suse.md) |
-| **Windows Server 2019+ (IIS)** | [docs/deploy-windows.md](docs/deploy-windows.md) |
-| Arch, Fedora, Alpine, other Linux | [docs/installation.md → Other distributions](docs/installation.md#other-distributions) |
-| Any OS with Docker | [docs/installation.md → Docker Compose](docs/installation.md#docker-compose) |
-
-**Prefer one command?** On Debian/Ubuntu, RHEL-family and openSUSE, the installer does all of the steps
-above after asking for the host name and admin password. Running it again updates the app.
+On a Linux server (Debian, Ubuntu, RHEL / Rocky / Alma, Fedora, openSUSE):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/DuprTECH/DMARCula---DMARC-Anylzer/main/deploy/install.sh -o install.sh
 sudo bash install.sh
 ```
 
-After installation:
-- connect the Exchange Online mailbox: [docs/microsoft-365.md](docs/microsoft-365.md),
-- optionally enable LDAP or SSO login: [docs/authentication.md](docs/authentication.md),
-- backups, cron jobs, logs, updates: [docs/operations.md](docs/operations.md).
+The installer asks for the host name and admin password. It then installs MariaDB, the
+application, the systemd service, Apache or nginx with HTTPS, and cron jobs for backups.
+Running it again updates the application.
 
-> The application runs as a service behind Apache / nginx / IIS. **Never put it into
-> `public_html`** or any other web root, because `.env` with the passwords would become downloadable.
+Then add the report mailbox in *Administrácia → Poštové schránky*
+([Microsoft 365 setup](docs/microsoft-365.md)).
+
+Existing sites, company certificates, Docker, Windows and troubleshooting are covered in
+[docs/installation.md](docs/installation.md).
 
 ## Requirements
 

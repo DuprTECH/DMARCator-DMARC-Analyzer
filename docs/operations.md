@@ -65,9 +65,9 @@ show up within that time, or immediately after the next report import.
 
 ## Cron jobs
 
-The Linux deploy guides (step 8) install [`deploy/cron/dmarcula`](../deploy/cron/dmarcula) as
-**`/etc/cron.d/dmarcula`**. On Windows, the equivalent is the scheduled tasks from
-[deploy-windows.md](deploy-windows.md) step 8. The installed jobs:
+The installer puts [`deploy/cron/dmarcula`](../deploy/cron/dmarcula) into **`/etc/cron.d/dmarcula`**.
+On Windows, schedule [`deploy/windows/backup.ps1`](../deploy/windows/backup.ps1) and `python -m app.manage prune --days 730`
+with Task Scheduler. The installed jobs:
 
 | When | Job | Mails `MAILTO` |
 |---|---|---|
@@ -91,7 +91,7 @@ MAILTO=admin@example.com
 Notes:
 - Lines in `/etc/cron.d/` have a **user column** (`dmarc`) after the schedule, unlike `crontab -e`.
 - `%` must be escaped as `\%`.
-- `.backup.my.cnf` (created in step 8, mode 600) holds the database credentials for the dump.
+- `.backup.my.cnf` (created by the installer, mode 600) holds the database credentials for the dump.
 - `MAILTO` needs a working local MTA, e.g. `apt install postfix` configured as *Satellite system*
   with your mail server as relay. Without one, cron output goes to `/var/mail/dmarc`.
 - Check that jobs ran: `grep dmarcula /var/log/syslog` (Debian), `journalctl -u cron` or
@@ -164,8 +164,8 @@ gunzip -c /var/backups/dmarcula/dmarcula-2026-10-13.sql.gz | sudo mariadb dmarcu
 sudo systemctl start dmarcula
 ```
 
-**Move to a new server:** follow your system's deploy guide up to step 3, copy the old `.env`,
-restore the dump, then continue with step 5.
+**Move to a new server:** run the installer on the new server, stop the service, restore the dump,
+copy the old `SECRET_KEY` into the new `.env` (needed to decrypt the mailbox credentials), and start the service.
 
 ## Data retention
 
@@ -282,7 +282,7 @@ sudo mariadb -e "SELECT table_name, ROUND((data_length+index_length)/1024/1024) 
                  FROM information_schema.tables WHERE table_schema='dmarcula' ORDER BY MB DESC;"
 ```
 
-Updates of DMARCula apply schema changes automatically at startup (see [Updating](installation.md#updating)).
+Updates of DMARCula apply schema changes automatically at startup (update = run the installer again, see [Installation](installation.md)).
 Take a backup before every update.
 
 ## Common tasks
@@ -295,5 +295,5 @@ Take a backup before every update.
 | Re-check all DNS now | UI: *Domény → Skontrolovať DNS*, or `python -m app.manage dns` |
 | Import historical reports | UI: *Import reportov* (zip/gz/xml/eml) |
 | Change `SECRET_KEY` | edit `.env`, restart, then re-enter the mailbox secrets (they can't be decrypted with the new key) |
-| Update the application | see [Updating](installation.md#updating) |
+| Update the application | run the installer again: `sudo bash /home/dmarc/dmarcula/deploy/install.sh` |
 | Restart | `sudo systemctl restart dmarcula` |

@@ -1,0 +1,50 @@
+{% from "macros.html" import logo %}<!doctype html>
+<html lang="sk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prihlásenie · {{ settings.app_name }}</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%238b1e3f'/%3E%3Cpath d='M5 12c3 0 4-3 4-3s1 4 4 4l3-4 3 4c3 0 4-4 4-4s1 3 4 3c-1 4-5 6-7 6l-4 6-4-6c-2 0-6-2-7-6z' fill='%23fff'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="/static/js/app.js"></script>
+</head>
+<body>
+<div class="login-wrap">
+  <section class="login-art">
+    <div class="logo" style="padding:0">{{ logo() }}<span>{{ settings.app_name }}<small>DMARC Analyzer</small></span></div>
+    <div>
+      <h1>Majte pod kontrolou, kto posiela poštu za vašu doménu.</h1>
+      <p>Agregované aj forenzné DMARC reporty, TLS-RPT, kontrola SPF, DKIM, MTA-STS a BIMI – automaticky zo schránky v Exchange Online.</p>
+      <div class="pills"><span>DMARC</span><span>SPF</span><span>DKIM</span><span>MTA-STS</span><span>TLS-RPT</span><span>BIMI</span></div>
+    </div>
+    <small style="color:#6f6d79">© {{ settings.app_name }}</small>
+  </section>
+  <section class="login-form">
+    <div class="box">
+      <h1 style="margin-bottom:6px">Prihlásenie</h1>
+      <p class="hint" style="margin-top:0;margin-bottom:24px">
+        {% if settings.ldap_enabled %}Použite doménové konto (LDAP){% if settings.local_login_enabled %} alebo lokálny účet{% endif %}.{% else %}Prihláste sa svojím účtom.{% endif %}
+      </p>
+      {% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+      {% if settings.oidc_enabled %}
+        <a class="btn primary" href="/auth/oidc/login">
+          <svg viewBox="0 0 21 21" width="16" height="16" aria-hidden="true"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+          {{ settings.oidc_button_label }}
+        </a>
+        {% if settings.ldap_enabled or settings.local_login_enabled %}<div class="divider">alebo</div>{% endif %}
+      {% endif %}
+      {% if settings.ldap_enabled or settings.local_login_enabled %}
+      <form method="post" action="/login">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <div class="field"><label for="u">Používateľské meno</label>
+          <input id="u" type="text" name="username" value="{{ username or '' }}" autocomplete="username" required autofocus placeholder="{% if settings.ldap_enabled %}meno alebo meno@domena{% endif %}"></div>
+        <div class="field"><label for="p">Heslo</label>
+          <input id="p" type="password" name="password" autocomplete="current-password" required></div>
+        <button class="btn {% if not settings.oidc_enabled %}primary{% endif %}" type="submit">Prihlásiť</button>
+      </form>
+      {% endif %}
+    </div>
+  </section>
+</div>
+</body>
+</html>

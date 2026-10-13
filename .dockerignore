@@ -1,0 +1,7 @@
+.git
+.env
+data
+geoip
+tests
+**/__pycache__
+*.db*

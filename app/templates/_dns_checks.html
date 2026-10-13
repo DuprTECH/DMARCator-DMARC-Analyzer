@@ -1,0 +1,52 @@
+{# expects `dns` – result of dns_checks.check_domain #}
+{% from "macros.html" import status_badge, issues %}
+<div class="grid g-2">
+  <div class="check">
+    <div class="check-head"><strong>DMARC</strong>{{ status_badge(dns.dmarc.status) }}</div>
+    {% if dns.dmarc.record %}<div class="record">{{ dns.dmarc.record }}</div>{% endif %}
+    {% if dns.dmarc.tags %}
+    <dl class="kv" style="margin-bottom:10px">
+      {% for k, label in [('p', 'Politika'), ('sp', 'Subdomény'), ('pct', 'Percento'), ('adkim', 'DKIM zarovnanie'), ('aspf', 'SPF zarovnanie'), ('rua', 'Agregované reporty'), ('ruf', 'Forenzné reporty'), ('fo', 'Failure options')] %}
+        {% if dns.dmarc.tags.get(k) %}<dt>{{ label }}</dt><dd class="mono">{{ dns.dmarc.tags[k] }}{% if k in ('adkim', 'aspf') %} ({{ 'strict' if dns.dmarc.tags[k] == 's' else 'relaxed' }}){% endif %}</dd>{% endif %}
+      {% endfor %}
+    </dl>
+    {% endif %}
+    {{ issues(dns.dmarc.issues) }}
+  </div>
+  <div class="check">
+    <div class="check-head"><strong>SPF</strong><span>{% if dns.spf.record %}<span class="badge plain {{ 'error' if dns.spf.lookups > 10 else ('warn' if dns.spf.lookups >= 8 else 'ok') }}">{{ dns.spf.lookups }}/10 lookupov</span> {% endif %}{{ status_badge(dns.spf.status) }}</span></div>
+    {% if dns.spf.record %}<div class="record">{{ dns.spf.record }}</div>{% endif %}
+    {% if dns.spf.includes %}<p class="sub" style="margin:0 0 8px">Include: {{ dns.spf.includes|join(', ') }}</p>{% endif %}
+    {{ issues(dns.spf.issues) }}
+  </div>
+  <div class="check">
+    <div class="check-head"><strong>DKIM</strong>{{ status_badge(dns.dkim.status) }}</div>
+    {% if dns.dkim.selectors %}
+    <table style="margin-bottom:10px"><thead><tr><th>Selektor</th><th>Typ</th><th>Dĺžka</th><th>Zdroj</th></tr></thead><tbody>
+      {% for s in dns.dkim.selectors %}
+      <tr><td class="mono">{{ s.selector }}</td><td>{{ s.key_type|upper }}</td>
+        <td>{% if s.revoked %}<span class="badge info">zrušený</span>{% elif s.bits %}<span class="badge plain {{ 'ok' if s.bits >= 2048 or s.key_type == 'ed25519' else ('warn' if s.bits >= 1024 else 'error') }}">{{ s.bits }} b</span>{% else %}?{% endif %}</td>
+        <td class="sub">{{ 'z reportov' if s.from_reports else 'bežný selektor' }}</td></tr>
+      {% endfor %}
+    </tbody></table>
+    {% endif %}
+    {{ issues(dns.dkim.issues) }}
+  </div>
+  <div class="check">
+    <div class="check-head"><strong>MX</strong>{% if dns.mx.provider %}<span class="badge info plain">{{ dns.mx.provider }}</span>{% endif %}</div>
+    {% for h in dns.mx.hosts %}<div class="mono">{{ h.pref }} {{ h.host }}</div>{% endfor %}
+    {{ issues(dns.mx.issues) }}
+  </div>
+  <div class="check">
+    <div class="check-head"><strong>MTA-STS</strong>{{ status_badge(dns.mta_sts.status) }}</div>
+    {% if dns.mta_sts.record %}<div class="record">{{ dns.mta_sts.record }}</div>{% endif %}
+    {% if dns.mta_sts.policy %}<dl class="kv" style="margin-bottom:10px"><dt>Režim</dt><dd>{{ dns.mta_sts.policy.mode }}</dd><dt>max_age</dt><dd>{{ dns.mta_sts.policy.max_age }}</dd><dt>MX</dt><dd class="mono">{{ dns.mta_sts.policy.mx|join(', ') }}</dd></dl>{% endif %}
+    {{ issues(dns.mta_sts.issues) }}
+  </div>
+  <div class="check">
+    <div class="check-head"><strong>TLS-RPT & BIMI</strong><span>{{ status_badge(dns.tls_rpt.status) }} {{ status_badge(dns.bimi.status) }}</span></div>
+    {% if dns.tls_rpt.record %}<div class="record">{{ dns.tls_rpt.record }}</div>{% endif %}
+    {% if dns.bimi.record %}<div class="record">{{ dns.bimi.record }}</div>{% endif %}
+    {{ issues(dns.tls_rpt.issues + dns.bimi.issues) }}
+  </div>
+</div>

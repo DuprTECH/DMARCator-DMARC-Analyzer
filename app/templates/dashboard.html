@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% from "macros.html" import period, cat_badge, policy_badge, rate_bar, issues, empty with context %}
+{% set s = data.summary %}
+{% block title %}Prehľad{% endblock %}
+{% block heading %}Prehľad{% endblock %}
+{% block subtitle %}{{ f.start|dt }} – {{ f.end|dt }}{% if f.domain %} · {{ f.domain }}{% else %} · všetky domény{% endif %}{% endblock %}
+{% block filters %}{{ period(f, days, '/') }}{% endblock %}
+
+{% block content %}
+{% if not s.total and not domains %}
+<div class="card">{{ empty('Zatiaľ nemáte žiadne reporty. Pridajte poštovú schránku s DMARC reportami alebo nahrajte reporty ručne.') }}
+  {% if user.role == 'admin' %}<div class="actions" style="justify-content:center"><a class="btn primary" href="/admin/sources">Pridať schránku</a><a class="btn" href="/admin/upload">Nahrať reporty</a></div>{% endif %}
+</div>
+{% else %}
+
+<div class="grid g-kpi">
+  <div class="card kpi hero">
+    <div class="label">DMARC súlad</div>
+    <div class="value">{{ s.pass_pct|pct }}</div>
+    <div class="foot">
+      {% if s.pass_delta is not none %}<span class="delta {% if s.pass_delta >= 0 %}up{% else %}down{% endif %}">{% if s.pass_delta >= 0 %}▲{% else %}▼{% endif %} {{ s.pass_delta|abs }} p.b.</span> oproti predch. obdobiu{% else %}{{ s.pass|num }} z {{ s.total|num }} správ{% endif %}
+    </div>
+    <div class="meter"><span style="width: {{ s.pass_pct or 0 }}%; background: var(--good)"></span></div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Správ celkom</div>
+    <div class="value">{{ s.total|num }}</div>
+    <div class="foot">{% if s.total_delta is not none %}<span class="delta {% if s.total_delta >= 0 %}up{% else %}down{% endif %}">{% if s.total_delta >= 0 %}▲{% else %}▼{% endif %} {{ s.total_delta|abs }} %</span> objem{% else %}{{ s.reports|num }} reportov{% endif %}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">SPF zarovnané</div>
+    <div class="value">{{ s.spf_pct|pct }}</div>
+    <div class="meter"><span style="width: {{ s.spf_pct or 0 }}%"></span></div>
+  </div>
+  <div class="card kpi">
+    <div class="label">DKIM zarovnané</div>
+    <div class="value">{{ s.dkim_pct|pct }}</div>
+    <div class="meter"><span style="width: {{ s.dkim_pct or 0 }}%"></span></div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Hrozby / neznáme</div>
+    <div class="value" style="color: var(--critical-text)">{{ s.threat|num }}</div>
+    <div class="foot">karanténa {{ s.quarantine|num }} · reject {{ s.reject|num }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Zdroje</div>
+    <div class="value">{{ s.ips|num }}</div>
+    <div class="foot">IP adries · {{ s.reporters|num }} reportérov · {{ s.forensic|num }} forenzných</div>
+  </div>
+</div>
+
+<div class="grid g-21 mt">
+  <div class="card">
+    <div class="card-head"><h2>Objem pošty podľa výsledku DMARC</h2><span class="hint">denne</span></div>
+    <div id="ch-volume" class="chart tall" role="img" aria-label="Denný objem správ podľa výsledku DMARC"></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Klasifikácia prevádzky</h2><a class="hint" href="/sources?days={{ days }}{% if f.domain %}&domain={{ f.domain }}{% endif %}">detail →</a></div>
+    <div id="ch-cats" class="chart tall" role="img" aria-label="Rozdelenie správ podľa kategórie"></div>
+  </div>
+</div>
+
+<div class="grid g-21 mt">
+  <div class="card">
+    <div class="card-head"><h2>Miera súladu v čase</h2><span class="hint">čiarkovane cieľ 98 % pre p=reject</span></div>
+    <div id="ch-compliance" class="chart short" role="img" aria-label="Percento súladu DMARC v čase"></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Odporúčania</h2></div>
+    {% if insights %}{{ issues(insights, True) }}{% else %}<p class="hint">Všetko vyzerá dobre 🎉</p>{% endif %}
+  </div>
+</div>
+
+<div class="grid g-3 mt">
+  <div class="card">
+    <div class="card-head"><h2>Zarovnanie SPF / DKIM</h2></div>
+    <div id="ch-align" class="chart short" role="img" aria-label="Zarovnanie SPF a DKIM"></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Aplikovaná politika</h2><span class="hint">disposition</span></div>
+    <div id="ch-disp" class="chart short" role="img" aria-label="Aplikovaná politika"></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Top reportéri</h2><a class="hint" href="/reports?days={{ days }}">reporty →</a></div>
+    <div id="ch-rep" class="chart short" role="img" aria-label="Top reportujúce organizácie"></div>
+  </div>
+</div>
+
+<div class="grid g-21 mt">
+  <div class="card flush">
+    <div class="card-head"><h2>Odosielajúce služby</h2><a class="hint" href="/sources?days={{ days }}{% if f.domain %}&domain={{ f.domain }}{% endif %}">všetky →</a></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Služba</th><th>Kategória</th><th class="num">Správ</th><th>DMARC</th><th>SPF</th><th>DKIM</th></tr></thead>
+      <tbody>
+      {% for r in data.senders %}
+        <tr><td><strong>{{ r.name }}</strong><div class="sub">{{ r.ips }} IP</div></td><td>{{ cat_badge(r.category) }}</td>
+          <td class="num">{{ r.total|num }}</td><td>{{ rate_bar(r.pass_pct) }}</td><td>{{ rate_bar(r.spf_pct) }}</td><td>{{ rate_bar(r.dkim_pct) }}</td></tr>
+      {% else %}<tr><td colspan="6">{{ empty('Žiadne dáta') }}</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Krajiny pôvodu</h2></div>
+    {% set known = data.countries|rejectattr('name', 'equalto', 'Neznáma')|list %}
+    {% if known %}<div id="ch-map" class="chart" role="img" aria-label="Mapa krajín pôvodu"></div>{% endif %}
+    <div id="ch-countries" class="chart short" role="img" aria-label="Krajiny pôvodu"></div>
+    {% if not known %}<p class="hint">Pre krajiny a ASN nastavte GeoLite2 databázy (GEOIP_COUNTRY_DB / GEOIP_ASN_DB).</p>{% endif %}
+  </div>
+</div>
+
+<div class="grid g-21 mt">
+  <div class="card flush">
+    <div class="card-head"><h2>Domény</h2><a class="hint" href="/domains?days={{ days }}">všetky →</a></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Doména</th><th>Politika</th><th>DNS</th><th class="num">Správ</th><th>Súlad</th><th class="num">Hrozby</th><th>Trend</th></tr></thead>
+      <tbody>
+      {% for d in domains %}
+        <tr><td><a href="/domains/{{ d.name }}?days={{ days }}"><strong>{{ d.name }}</strong></a></td><td>{{ policy_badge(d.policy) }}</td>
+          <td><span class="grade {{ d.grade or '?' }}" title="Skóre {{ d.score }}">{{ d.grade or '?' }}</span></td>
+          <td class="num">{{ d.total|num }}</td><td>{{ rate_bar(d.pass_pct) }}</td><td class="num">{{ d.threat|num }}</td>
+          <td><svg class="spark" data-values="{{ d.spark|jsonify }}"></svg></td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+  <div class="card flush">
+    <div class="card-head"><h2>Nové zlyhávajúce zdroje</h2><span class="hint">posledných 7 dní</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>IP / PTR</th><th class="num">Správ</th></tr></thead>
+      <tbody>
+      {% for n in new_sources %}
+        <tr><td><a class="mono" href="/sources?q={{ n.ip }}&days={{ days }}">{{ n.ip }}</a><div class="sub ellipsis">{{ n.sender or n.ptr or 'bez PTR' }} · {{ n.domain }}</div></td><td class="num">{{ n.total|num }}</td></tr>
+      {% else %}<tr><td colspan="2" class="hint">Žiadne nové zlyhávajúce zdroje.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if data.summary.total or domains %}
+<script>
+  const D = {{ data|jsonify }};
+  DM.volume(document.getElementById("ch-volume"), D.timeline);
+  DM.compliance(document.getElementById("ch-compliance"), D.timeline);
+  DM.categories(document.getElementById("ch-cats"), D.categories);
+  DM.donut(document.getElementById("ch-align"), D.alignment, ["good", "s1", "s7", "critical"]);
+  DM.donut(document.getElementById("ch-disp"), D.dispositions.map(d => ({label: d.label, value: d.value})),
+           D.dispositions.map(d => ({none: "s1", quarantine: "warning", reject: "critical"})[d.label] || "s3"));
+  DM.hbar(document.getElementById("ch-rep"), D.reporters.map(r => ({name: r.name, value: r.total})));
+  DM.hbar(document.getElementById("ch-countries"), D.countries.slice(0, 8).map(r => ({name: r.name, value: r.total})));
+  DM.world(document.getElementById("ch-map"), D.countries.filter(c => c.name !== "Neznáma"));
+</script>
+{% endif %}
+{% endblock %}

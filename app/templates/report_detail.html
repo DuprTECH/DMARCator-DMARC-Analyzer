@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "macros.html" import cat_badge, policy_badge, icon %}
+{% block title %}Report {{ rep.report_id }}{% endblock %}
+{% block heading %}Report od {{ rep.org_name }}{% endblock %}
+{% block subtitle %}{{ rep.domain }} · {{ rep.date_begin|dt }} – {{ rep.date_end|dt }}{% endblock %}
+{% block filters %}{% if rep.raw_xml %}<a class="btn" href="/reports/{{ rep.id }}/xml">{{ icon('download') }}XML</a>{% endif %}{% endblock %}
+{% block content %}
+<div class="grid g-2">
+  <div class="card"><h2>Metadáta</h2>
+    <dl class="kv">
+      <dt>Reportér</dt><dd>{{ rep.org_name }}</dd>
+      <dt>Kontakt</dt><dd>{{ rep.org_email or '–' }}</dd>
+      <dt>Report ID</dt><dd class="mono">{{ rep.report_id }}</dd>
+      <dt>Prijatý</dt><dd>{{ rep.received_at|dt }} ({{ rep.source }})</dd>
+      <dt>Správ</dt><dd>{{ rep.message_count|num }}</dd>
+    </dl>
+  </div>
+  <div class="card"><h2>Publikovaná politika</h2>
+    <dl class="kv">
+      <dt>Doména</dt><dd><a href="/domains/{{ rep.domain }}">{{ rep.domain }}</a></dd>
+      <dt>p / sp / np</dt><dd>{{ policy_badge(rep.p) }} {{ rep.sp or '–' }} / {{ rep.np or '–' }}</dd>
+      <dt>pct</dt><dd>{{ rep.pct if rep.pct is not none else '–' }}</dd>
+      <dt>adkim / aspf</dt><dd>{{ rep.adkim or 'r' }} / {{ rep.aspf or 'r' }}</dd>
+      <dt>fo</dt><dd>{{ rep.fo or '–' }}</dd>
+    </dl>
+  </div>
+</div>
+<div class="card flush mt">
+  <div class="card-head"><h2>Záznamy ({{ records|length }})</h2></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Zdroj</th><th class="num">Správ</th><th>Kategória</th><th>Disposition</th><th>DMARC DKIM / SPF</th><th>Header From</th><th>Envelope From</th><th>DKIM výsledky</th><th>SPF výsledky</th><th>Override</th></tr></thead>
+    <tbody>
+    {% for r in records %}
+      <tr>
+        <td class="mono">{{ r.source_ip }}<div class="sub">{{ r.sender or r.ptr or '' }}</div></td>
+        <td class="num">{{ r.count|num }}</td>
+        <td>{{ cat_badge(r.category) }}</td>
+        <td><span class="badge {{ 'ok' if r.disposition == 'none' else ('warn' if r.disposition == 'quarantine' else 'error') }}">{{ r.disposition }}</span></td>
+        <td><span class="badge {{ 'ok' if r.dkim_aligned else 'error' }}">{{ r.policy_dkim or '–' }}</span> <span class="badge {{ 'ok' if r.spf_aligned else 'error' }}">{{ r.policy_spf or '–' }}</span></td>
+        <td>{{ r.header_from }}</td>
+        <td>{{ r.envelope_from or '–' }}</td>
+        <td class="mono">{% for d in r.dkim_results or [] %}<div>{{ d.domain }}{% if d.selector %} ({{ d.selector }}){% endif %}: <b>{{ d.result }}</b></div>{% else %}–{% endfor %}</td>
+        <td class="mono">{% for s in r.spf_results or [] %}<div>{{ s.domain }}: <b>{{ s.result }}</b></div>{% else %}–{% endfor %}</td>
+        <td>{% for x in r.reasons or [] %}<div>{{ x.type }}{% if x.comment %} <span class="sub">{{ x.comment }}</span>{% endif %}</div>{% else %}–{% endfor %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% if rep.raw_xml %}
+<details class="card mt"><summary>Zobraziť XML</summary><pre>{{ rep.raw_xml }}</pre></details>
+{% endif %}
+{% endblock %}

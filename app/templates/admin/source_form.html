@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Schránka{% endblock %}
+{% block heading %}{{ 'Upraviť' if src else 'Nová' }} schránka – {{ 'Exchange Online (Microsoft Graph)' if kind == 'graph' else 'IMAP' }}{% endblock %}
+{% macro secret(name, label, hint='') -%}
+<div class="field"><label>{{ label }}</label>
+  <input type="password" name="{{ name }}" autocomplete="new-password" placeholder="{{ '•••••• (uložené – nechajte prázdne)' if cfg.get('has_' ~ name) else '' }}">
+  {% if hint %}<div class="hint">{{ hint }}</div>{% endif %}</div>
+{%- endmacro %}
+{% macro text(name, label, hint='', placeholder='') -%}
+<div class="field"><label>{{ label }}</label><input type="text" name="{{ name }}" value="{{ cfg.get(name) or '' }}" placeholder="{{ placeholder }}">
+  {% if hint %}<div class="hint">{{ hint }}</div>{% endif %}</div>
+{%- endmacro %}
+{% block content %}
+<form method="post" action="/admin/sources/save" class="card" style="max-width:980px">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <input type="hidden" name="kind" value="{{ kind }}">
+  {% if src %}<input type="hidden" name="id" value="{{ src.id }}">{% endif %}
+  <div class="form-grid">
+    <div class="field"><label>Názov</label><input type="text" name="name" value="{{ src.name if src else '' }}" placeholder="napr. DMARC schránka"></div>
+    <div class="field"><label>&nbsp;</label><label class="toggle"><input type="checkbox" name="enabled" {% if not src or src.enabled %}checked{% endif %}> Povolené (automatické sťahovanie)</label></div>
+
+    {% if kind == 'graph' %}
+    {{ text('tenant_id', 'Tenant ID', 'Directory (tenant) ID z Entra ID') }}
+    {{ text('client_id', 'Client ID', 'Application (client) ID registrovanej aplikácie') }}
+    {{ secret('client_secret', 'Client secret', 'Alebo použite certifikát nižšie') }}
+    {{ text('mailbox', 'Schránka (UPN / SMTP)', 'napr. dmarc@contoso.com – zdieľaná schránka stačí') }}
+    {% else %}
+    {{ text('host', 'IMAP server', '', 'outlook.office365.com') }}
+    <div class="field"><label>Port</label><input type="number" name="port" value="{{ cfg.get('port') or 993 }}"></div>
+    <div class="field"><label>Zabezpečenie</label><select name="security">
+      {% for v, l in [('ssl', 'SSL/TLS (993)'), ('starttls', 'STARTTLS (143)'), ('none', 'Bez šifrovania')] %}<option value="{{ v }}" {% if cfg.get('security') == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Autentifikácia</label><select name="auth" id="imap-auth">
+      <option value="password" {% if cfg.get('auth') != 'oauth2_m365' %}selected{% endif %}>Meno + heslo</option>
+      <option value="oauth2_m365" {% if cfg.get('auth') == 'oauth2_m365' %}selected{% endif %}>OAuth2 – Exchange Online (XOAUTH2)</option></select></div>
+    {{ text('username', 'Používateľ / schránka') }}
+    {{ secret('password', 'Heslo', 'Pri OAuth2 nevypĺňajte') }}
+    {{ text('tenant_id', 'Tenant ID (OAuth2)') }}
+    {{ text('client_id', 'Client ID (OAuth2)') }}
+    {{ secret('client_secret', 'Client secret (OAuth2)') }}
+    {% endif %}
+
+    {{ text('folder', 'Priečinok s reportmi', 'napr. Inbox alebo Inbox/DMARC') }}
+    {{ text('processed_folder', 'Presunúť spracované do', 'Prázdne = nepresúvať. Priečinok sa vytvorí.') }}
+    {{ text('failed_folder', 'Presunúť chybné do', 'Prázdne = ponechať') }}
+    <div class="field"><label>Správanie</label>
+      <label class="toggle"><input type="checkbox" name="only_unread" {% if cfg.get('only_unread') %}checked{% endif %}> Spracovať iba neprečítané</label>
+      <label class="toggle"><input type="checkbox" name="mark_read" {% if cfg.get('mark_read') %}checked{% endif %}> Označiť ako prečítané</label>
+      {% if kind == 'imap' %}<label class="toggle"><input type="checkbox" name="tls_verify" {% if cfg.get('tls_verify', True) %}checked{% endif %}> Overovať TLS certifikát</label>{% endif %}
+    </div>
+
+    {% if kind == 'graph' %}
+    <details class="field full"><summary>Pokročilé – certifikát, národné cloudy</summary>
+      <div class="form-grid mt">
+        <div class="field full"><label>Certifikát – privátny kľúč (PEM)</label><textarea name="cert_pem" rows="4" placeholder="{{ '•••••• (uložené)' if cfg.get('has_cert_pem') else '-----BEGIN PRIVATE KEY-----' }}"></textarea></div>
+        {{ text('cert_thumbprint', 'Thumbprint certifikátu (SHA-1 hex)') }}
+        {{ text('authority_host', 'Authority host', '', 'https://login.microsoftonline.com') }}
+        {{ text('graph_endpoint', 'Graph endpoint', '', 'https://graph.microsoft.com') }}
+      </div>
+    </details>
+    {% endif %}
+  </div>
+
+  {% if kind == 'graph' %}
+  <details class="mt"><summary>Ako nastaviť prístup v Microsoft 365</summary>
+    <ol class="hint" style="line-height:1.8">
+      <li>Entra ID → App registrations → New registration (single tenant).</li>
+      <li>API permissions → Microsoft Graph → <b>Application</b> → <code>Mail.ReadWrite</code> (stačí <code>Mail.Read</code>, ak nepresúvate/neoznačujete) → Grant admin consent.</li>
+      <li>Certificates &amp; secrets → nový client secret alebo certifikát.</li>
+      <li>Obmedzte prístup len na DMARC schránku (Exchange Online PowerShell – RBAC for Applications):
+<pre>New-ServicePrincipal -AppId &lt;ClientId&gt; -ObjectId &lt;EnterpriseAppObjectId&gt; -DisplayName "DMARCula"
+New-ManagementScope -Name "DMARCula" -RecipientRestrictionFilter "PrimarySmtpAddress -eq 'dmarc@contoso.com'"
+New-ManagementRoleAssignment -App &lt;ClientId&gt; -Role "Application Mail.ReadWrite" -CustomResourceScope "DMARCula"</pre>
+        Pri RBAC for Applications odstráňte Graph povolenie Mail.ReadWrite z App registration (inak platí pre celý tenant).</li>
+    </ol>
+  </details>
+  {% endif %}
+
+  <div class="actions mt"><button class="btn primary" type="submit">Uložiť</button><a class="btn" href="/admin/sources">Zrušiť</a></div>
+</form>
+{% endblock %}

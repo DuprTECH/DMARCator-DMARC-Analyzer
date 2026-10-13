@@ -1,0 +1,31 @@
+services:
+  dmarcula:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://dmarcula:${POSTGRES_PASSWORD:-dmarcula}@db:5432/dmarcula
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./geoip:/geoip:ro   # optional GeoLite2-Country.mmdb / GeoLite2-ASN.mmdb
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dmarcula
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dmarcula}
+      POSTGRES_DB: dmarcula
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dmarcula"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  pgdata:

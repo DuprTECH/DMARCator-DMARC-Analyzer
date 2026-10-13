@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Používatelia{% endblock %}
+{% block heading %}Používatelia{% endblock %}
+{% block subtitle %}LDAP a SSO účty sa vytvárajú automaticky pri prvom prihlásení{% endblock %}
+{% block content %}
+<div class="card flush">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Používateľ</th><th>Zdroj</th><th>Posledné prihlásenie</th><th>Rola / stav / heslo</th><th></th></tr></thead>
+    <tbody>
+    {% for u in items %}
+      <tr>
+        <td><strong>{{ u.username }}</strong><div class="sub">{{ u.display_name or '' }} {{ u.email or '' }}</div></td>
+        <td><span class="badge info plain">{{ u.auth_source|upper }}</span></td>
+        <td class="sub">{{ u.last_login|dt }}</td>
+        <td>
+          <form class="actions" method="post" action="/admin/users/{{ u.id }}/update">
+            <input type="hidden" name="csrf_token" value="{{ csrf }}">
+            <select name="role"><option value="viewer" {% if u.role == 'viewer' %}selected{% endif %}>viewer</option><option value="admin" {% if u.role == 'admin' %}selected{% endif %}>admin</option></select>
+            <label class="toggle"><input type="checkbox" name="is_active" {% if u.is_active %}checked{% endif %}> aktívny</label>
+            {% if u.auth_source == 'local' %}<input type="password" name="password" placeholder="nové heslo" autocomplete="new-password" style="width:140px">{% endif %}
+            <button class="btn sm" type="submit">Uložiť</button>
+          </form>
+        </td>
+        <td>{% if u.id != user.id %}<form method="post" action="/admin/users/{{ u.id }}/delete" data-confirm="Odstrániť používateľa {{ u.username }}?"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="btn sm danger">Odstrániť</button></form>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+<p class="hint">Ak je nastavená skupina správcov (LDAP_ADMIN_GROUP / OIDC_ADMIN_GROUPS), rola externých účtov sa pri každom prihlásení prepočíta podľa skupín.</p>
+
+<form class="card mt" method="post" action="/admin/users/create" style="max-width:720px">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <h2>Nový lokálny účet</h2>
+  <div class="form-grid">
+    <div class="field"><label>Používateľské meno</label><input type="text" name="username" required></div>
+    <div class="field"><label>Heslo (min. 10 znakov)</label><input type="password" name="password" required minlength="10" autocomplete="new-password"></div>
+    <div class="field"><label>Meno</label><input type="text" name="display_name"></div>
+    <div class="field"><label>E-mail</label><input type="email" name="email"></div>
+    <div class="field"><label>Rola</label><select name="role"><option value="viewer">viewer</option><option value="admin">admin</option></select></div>
+  </div>
+  <div class="actions mt"><button class="btn primary" type="submit">Vytvoriť</button></div>
+</form>
+{% endblock %}

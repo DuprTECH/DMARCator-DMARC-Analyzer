@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon %}
+{% block title %}Nástroje{% endblock %}
+{% block heading %}Nástroje{% endblock %}
+{% block subtitle %}Kontrola ľubovoľnej domény a generátor DMARC záznamu{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Kontrola domény</h2>
+  <form class="actions" method="get" action="/tools">
+    <input type="text" name="lookup" value="{{ lookup }}" placeholder="napr. example.com" style="min-width:280px" required>
+    <button class="btn primary" type="submit">{{ icon('search') }}Skontrolovať</button>
+  </form>
+  <p class="hint">Kontroluje DMARC, SPF (vrátane počtu DNS lookupov), DKIM (bežné selektory), MX, MTA-STS, TLS-RPT a BIMI.</p>
+</div>
+
+{% if result %}
+<div class="card mt" style="display:flex;gap:18px;align-items:center">
+  <span class="grade big {{ result.grade }}">{{ result.grade }}</span>
+  <div><div class="hint">Skóre pre</div><div style="font-size:20px;font-weight:650">{{ result.domain }} – {{ result.score }}/100</div></div>
+</div>
+<div class="mt">{% with dns = result %}{% include "_dns_checks.html" %}{% endwith %}</div>
+{% endif %}
+
+<div class="card mt2">
+  <h2>Generátor DMARC záznamu</h2>
+  <div class="form-grid" id="gen">
+    <div class="field"><label>Doména</label><input type="text" data-k="domain" value="{{ lookup or 'example.com' }}"></div>
+    <div class="field"><label>Politika (p)</label><select data-k="p"><option>none</option><option>quarantine</option><option selected>reject</option></select></div>
+    <div class="field"><label>Politika subdomén (sp)</label><select data-k="sp"><option value="">(ako p)</option><option>none</option><option>quarantine</option><option>reject</option></select></div>
+    <div class="field"><label>Percento (pct)</label><input type="number" min="1" max="100" data-k="pct" value="100"></div>
+    <div class="field"><label>Agregované reporty (rua)</label><input type="text" data-k="rua" placeholder="dmarc@example.com"></div>
+    <div class="field"><label>Forenzné reporty (ruf)</label><input type="text" data-k="ruf" placeholder="voliteľné"></div>
+    <div class="field"><label>DKIM zarovnanie (adkim)</label><select data-k="adkim"><option value="r">relaxed</option><option value="s">strict</option></select></div>
+    <div class="field"><label>SPF zarovnanie (aspf)</label><select data-k="aspf"><option value="r">relaxed</option><option value="s">strict</option></select></div>
+    <div class="field"><label>Forenzné reporty pri (fo)</label><select data-k="fo"><option value="">0 – SPF aj DKIM zlyhali</option><option value="1">1 – SPF alebo DKIM zlyhal</option><option value="d">d – DKIM zlyhal</option><option value="s">s – SPF zlyhal</option></select></div>
+  </div>
+  <div class="mt"><div class="hint">Záznam (TXT) pre <span class="mono" id="gen-name"></span>:</div><div class="record" id="gen-out"></div>
+    <button class="btn sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('gen-out').textContent)">Kopírovať</button></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const root = document.getElementById("gen");
+  const get = (k) => root.querySelector(`[data-k="${k}"]`).value.trim();
+  const mail = (v) => v.split(/[,;\s]+/).filter(Boolean).map((x) => x.startsWith("mailto:") ? x : "mailto:" + x).join(",");
+  function update() {
+    const parts = ["v=DMARC1", "p=" + get("p")];
+    if (get("sp")) parts.push("sp=" + get("sp"));
+    if (get("pct") && get("pct") !== "100") parts.push("pct=" + get("pct"));
+    if (get("rua")) parts.push("rua=" + mail(get("rua")));
+    if (get("ruf")) parts.push("ruf=" + mail(get("ruf")));
+    if (get("adkim") === "s") parts.push("adkim=s");
+    if (get("aspf") === "s") parts.push("aspf=s");
+    if (get("fo")) parts.push("fo=" + get("fo"));
+    document.getElementById("gen-out").textContent = parts.join("; ");
+    document.getElementById("gen-name").textContent = "_dmarc." + (get("domain") || "example.com");
+  }
+  root.addEventListener("input", update);
+  update();
+})();
+</script>
+{% endblock %}

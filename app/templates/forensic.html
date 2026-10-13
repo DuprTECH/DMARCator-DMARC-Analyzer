@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "macros.html" import period, pager, empty with context %}
+{% block title %}Forenzné reporty{% endblock %}
+{% block heading %}Forenzné reporty (RUF){% endblock %}
+{% block subtitle %}{{ total|num }} reportov o jednotlivých zlyhaných správach{% endblock %}
+{% block filters %}{{ period(f, days, '/forensic') }}{% endblock %}
+{% block content %}
+<div class="card flush">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Doručené</th><th>Doména</th><th>Zdroj</th><th>Od / Komu</th><th>Predmet</th><th>Zlyhanie</th><th>Výsledok</th><th>Reportér</th></tr></thead>
+    <tbody>
+    {% for r in items %}
+      <tr>
+        <td><a href="/forensic/{{ r.id }}">{{ r.arrival_date|dt }}</a></td>
+        <td>{{ r.reported_domain or '–' }}</td>
+        <td class="mono">{{ r.source_ip or '–' }}<div class="sub ellipsis">{{ r.ptr or '' }}{% if r.country %} · {{ r.country }}{% endif %}</div></td>
+        <td><div class="ellipsis">{{ r.original_mail_from or '–' }}</div><div class="sub ellipsis">{{ r.original_rcpt_to or '' }}</div></td>
+        <td class="ellipsis" title="{{ r.subject or '' }}">{{ r.subject or '–' }}</td>
+        <td><span class="badge error">{{ r.auth_failure or r.feedback_type or '?' }}</span></td>
+        <td>{{ r.delivery_result or '–' }}</td>
+        <td class="sub">{{ r.reporter or '–' }}</td>
+      </tr>
+    {% else %}<tr><td colspan="8">{{ empty('Žiadne forenzné reporty. Väčšina veľkých poskytovateľov (Google, Microsoft) ich neposiela; nastavte ruf= a fo=1 v DMARC zázname.') }}</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {{ pager(page, pages, '/forensic?days=' ~ days ~ ('&domain=' ~ f.domain if f.domain else '')) }}
+</div>
+{% endblock %}

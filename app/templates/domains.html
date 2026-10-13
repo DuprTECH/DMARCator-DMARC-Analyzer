@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "macros.html" import period, policy_badge, rate_bar, icon, empty with context %}
+{% block title %}Domény{% endblock %}
+{% block heading %}Domény{% endblock %}
+{% block subtitle %}{{ domains|length }} domén · {{ f.start|dt }} – {{ f.end|dt }}{% endblock %}
+{% block filters %}
+{% if user.role == 'admin' %}
+<form method="post" action="/admin/dns-refresh"><input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <button class="btn" type="submit">{{ icon('refresh') }}Skontrolovať DNS</button></form>
+{% endif %}
+{{ period(f, days, '/domains') }}
+{% endblock %}
+{% block content %}
+<div class="card flush">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Doména</th><th>Politika</th><th>DNS skóre</th><th class="num">Správ</th><th>DMARC súlad</th><th class="num">Preposlané</th><th class="num">Hrozby</th><th class="num">IP</th><th>Trend</th><th>Posledný report</th></tr></thead>
+    <tbody>
+    {% for d in domains %}
+      <tr>
+        <td><a href="/domains/{{ d.name }}?days={{ days }}"><strong>{{ d.name }}</strong></a></td>
+        <td>{{ policy_badge(d.policy) }}</td>
+        <td><span class="grade {{ d.grade or '?' }}">{{ d.grade or '?' }}</span> <span class="sub">{{ d.score if d.score is not none else '–' }}/100</span></td>
+        <td class="num">{{ d.total|num }}</td>
+        <td>{{ rate_bar(d.pass_pct) }}</td>
+        <td class="num">{{ d.forwarded|num }}</td>
+        <td class="num">{% if d.threat %}<span style="color:var(--critical-text);font-weight:600">{{ d.threat|num }}</span>{% else %}0{% endif %}</td>
+        <td class="num">{{ d.ips|num }}</td>
+        <td><svg class="spark" data-values="{{ d.spark|jsonify }}"></svg></td>
+        <td class="sub">{{ d.last_seen|dt }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="10">{{ empty('Domény sa pridávajú automaticky z prijatých reportov.') }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

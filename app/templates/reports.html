@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "macros.html" import period, policy_badge, rate_bar, pager, empty with context %}
+{% block title %}Agregované reporty{% endblock %}
+{% block heading %}Agregované reporty (RUA){% endblock %}
+{% block subtitle %}{{ total|num }} reportov · {{ f.start|dt }} – {{ f.end|dt }}{% endblock %}
+{% block filters %}{{ period(f, days, '/reports', {'org': org}) }}{% endblock %}
+{% block content %}
+<div class="grid g-12">
+  <div class="card">
+    <div class="card-head"><h2>Reportéri</h2>{% if org %}<a class="hint" href="/reports?days={{ days }}{% if f.domain %}&domain={{ f.domain }}{% endif %}">zrušiť filter ×</a>{% endif %}</div>
+    <table><tbody>
+      {% for r in reporters %}
+      <tr><td><a href="/reports?days={{ days }}&org={{ r.name|urlencode }}{% if f.domain %}&domain={{ f.domain }}{% endif %}" {% if org == r.name %}style="font-weight:700"{% endif %}>{{ r.name }}</a><div class="sub">{{ r.reports|num }} reportov</div></td>
+        <td class="num">{{ r.total|num }}</td></tr>
+      {% endfor %}
+    </tbody></table>
+  </div>
+  <div class="card flush">
+    <div class="table-wrap"><table>
+      <thead><tr><th>Obdobie</th><th>Reportér</th><th>Doména</th><th>Politika</th><th class="num">Správ</th><th>Súlad</th><th>Zdroj</th></tr></thead>
+      <tbody>
+      {% for r in items %}
+        {% set passed = pass_counts.get(r.id, 0) %}
+        <tr>
+          <td><a href="/reports/{{ r.id }}">{{ r.date_begin|dt }}</a><div class="sub">→ {{ r.date_end|dt }}</div></td>
+          <td>{{ r.org_name }}<div class="sub ellipsis">{{ r.report_id }}</div></td>
+          <td>{{ r.domain }}</td>
+          <td>{{ policy_badge(r.p) }}</td>
+          <td class="num">{{ r.message_count|num }}</td>
+          <td>{{ rate_bar((100.0 * passed / r.message_count) if r.message_count else none) }}</td>
+          <td class="sub">{{ r.source }}</td>
+        </tr>
+      {% else %}<tr><td colspan="7">{{ empty('Žiadne reporty') }}</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+    {{ pager(page, pages, '/reports?days=' ~ days ~ ('&domain=' ~ f.domain if f.domain else '') ~ ('&org=' ~ org|urlencode if org else '')) }}
+  </div>
+</div>
+{% endblock %}

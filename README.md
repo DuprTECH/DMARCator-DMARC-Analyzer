@@ -3,6 +3,8 @@
 DMARCula je webová aplikácia, ktorá sama sťahuje DMARC reporty zo schránky v Exchange Online (Microsoft 365), z IMAP alebo z ručne nahratých súborov. Reporty rozparsuje, ku každému odosielateľovi dohľadá službu (Microsoft 365, SendGrid, Mailchimp…), skontroluje DNS konfiguráciu domén a výsledky ukáže na dashboarde.
 Pri návrhu som vychádzal z existujúcich riešení, ako sú dmarcian, Valimail, EasyDMARC a parsedmarc.
 
+📖 **Podrobná dokumentácia je v priečinku [docs/](docs/README.md).** Obsahuje inštaláciu, konfiguráciu, prihlasovanie, nastavenie Microsoft 365, používateľskú príručku a popis architektúry.
+
 ## Funkcie
 
 | Oblasť | Čo vie |

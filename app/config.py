@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     default_role: str = "viewer"
 
     # Ingestion
+    scheduler_enabled: bool = True  # false = poll from cron via "python -m app.manage poll"
     poll_interval_minutes: int = 15
     dns_refresh_hours: int = 24
     resolve_ptr: bool = True

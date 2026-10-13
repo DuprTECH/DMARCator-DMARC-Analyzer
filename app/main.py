@@ -44,13 +44,17 @@ async def lifespan(_: FastAPI):
         log.warning("SECRET_KEY is the default value – set a long random SECRET_KEY in production!")
     init_db()
     bootstrap_admin()
-    scheduler.add_job(run_all_sources, "interval", minutes=settings.poll_interval_minutes, id="mail",
-                      max_instances=1, coalesce=True)
-    scheduler.add_job(refresh_dns, "interval", hours=settings.dns_refresh_hours, id="dns",
-                      max_instances=1, coalesce=True)
-    scheduler.start()
+    if settings.scheduler_enabled:
+        scheduler.add_job(run_all_sources, "interval", minutes=settings.poll_interval_minutes, id="mail",
+                          max_instances=1, coalesce=True)
+        scheduler.add_job(refresh_dns, "interval", hours=settings.dns_refresh_hours, id="dns",
+                          max_instances=1, coalesce=True)
+        scheduler.start()
+    else:
+        log.info("Built-in scheduler disabled – run 'python -m app.manage poll' from cron")
     yield
-    scheduler.shutdown(wait=False)
+    if scheduler.running:
+        scheduler.shutdown(wait=False)
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)

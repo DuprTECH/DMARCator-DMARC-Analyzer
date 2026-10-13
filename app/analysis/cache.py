@@ -1,7 +1,8 @@
 """Tiny in-process cache for expensive aggregate views.
 
 Data only changes when reports are ingested or DNS is re-checked, so cached results are
-dropped by `invalidate()` from those code paths; the TTL is just a safety net.
+dropped by `invalidate()` from those code paths. The TTL bounds staleness when another
+process (e.g. `python -m app.manage poll` from cron) ingests reports.
 """
 
 import threading
@@ -24,7 +25,7 @@ def invalidate():
         _store.clear()
 
 
-def cached(key: tuple, compute: Callable[[], T], ttl: float = 900) -> T:
+def cached(key: tuple, compute: Callable[[], T], ttl: float = 300) -> T:
     now = time.monotonic()
     with _lock:
         hit = _store.get(key)

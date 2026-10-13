@@ -8,12 +8,14 @@ dozens to hundreds of domains), step by step for each distribution family.
 - [Debian 12 / Ubuntu 22.04+ (step by step)](#debian-12--ubuntu-2204-step-by-step)
 - [RHEL / Rocky / AlmaLinux 9 (step by step)](#rhel--rocky--almalinux-9-step-by-step)
 - [Other distributions](#other-distributions)
-- [Apache instead of nginx](#apache-instead-of-nginx)
+- [Apache instead of nginx](#apache-instead-of-nginx) (Let's Encrypt, own certificate, existing `public_html` vhost, EL)
 - [Hosting panels and `public_html`](#hosting-panels-and-public_html)
 - [Docker Compose](#docker-compose)
 - [Updating](#updating)
 - [Backup and restore](#backup-and-restore)
 - [Troubleshooting](#troubleshooting)
+
+After installing, set up cron jobs, backups and monitoring: see [Operations](operations.md).
 
 ## How it runs
 
@@ -41,7 +43,7 @@ polls mailboxes runs inside the process.
 | Python | 3.10+ | 3.11 / 3.12 |
 | CPU / RAM | 1 vCPU / 1 GB | 2 vCPU / 2–4 GB |
 | Database | SQLite (built in) | **MariaDB 10.6+** (or PostgreSQL 14+) |
-| Disk | 1 GB | ~2–5 GB per year of reports |
+| Disk | 1 GB | ~2–8 GB per year of reports (less with [pruning](operations.md#data-retention)) |
 
 Rough data volume: each domain that sends mail receives about 2–6 aggregate reports per day.
 With 140 domains, that's about 500–800 reports and 5–20 thousand records per day, or a few
@@ -176,6 +178,8 @@ Logs: `sudo journalctl -u dmarcula -f`
 
 ### 7. nginx reverse proxy and HTTPS
 
+> Using **Apache** instead? Skip this step and follow [Apache instead of nginx](#apache-instead-of-nginx).
+
 ```bash
 sudo tee /etc/nginx/sites-available/dmarcula >/dev/null <<'EOF'
 server {
@@ -221,6 +225,7 @@ Open `https://dmarc.example.com` and sign in with `ADMIN_USERNAME` / `ADMIN_PASS
    mailbox. See [Microsoft 365 setup](microsoft-365.md).
 2. Click **Test**, then **Spustiť** (Run).
 3. Optionally configure LDAP or SSO. See [Authentication](authentication.md).
+4. Set up backups, data retention and monitoring. See [Operations](operations.md).
 
 ---
 
@@ -295,30 +300,167 @@ Then continue with: database SQL → user and code → `python -m venv` and `pip
 
 ## Apache instead of nginx
 
-Debian/Ubuntu:
+DMARCula needs its **own host name** (e.g. `dmarc.example.com`). It can't be served from a
+sub-path like `https://example.com/dmarc/`. Apache only forwards requests to
+`127.0.0.1:8000` and doesn't serve any files itself.
+
+### Debian / Ubuntu
+
+**1. Install and enable modules**
 
 ```bash
 sudo apt install -y apache2 certbot python3-certbot-apache
-sudo a2enmod proxy proxy_http headers ssl
+sudo a2enmod proxy proxy_http headers ssl rewrite http2
+sudo systemctl restart apache2
+```
 
+**2. HTTP virtual host.** Certbot needs it to obtain the certificate, and afterwards it
+redirects to HTTPS:
+
+```bash
 sudo tee /etc/apache2/sites-available/dmarcula.conf >/dev/null <<'EOF'
 <VirtualHost *:80>
     ServerName dmarc.example.com
+
     ProxyPreserveHost On
-    ProxyPass        / http://127.0.0.1:8000/
+    ProxyRequests Off
+    ProxyPass        / http://127.0.0.1:8000/ timeout=120
     ProxyPassReverse / http://127.0.0.1:8000/
-    RequestHeader set X-Forwarded-Proto "https" env=HTTPS
-    LimitRequestBody 62914560
+
+    ErrorLog  ${APACHE_LOG_DIR}/dmarcula-error.log
+    CustomLog ${APACHE_LOG_DIR}/dmarcula-access.log combined
 </VirtualHost>
 EOF
 
 sudo a2ensite dmarcula
 sudo apache2ctl configtest && sudo systemctl reload apache2
-sudo certbot --apache -d dmarc.example.com
 ```
 
-On EL, the file goes to `/etc/httpd/conf.d/dmarcula.conf`. `mod_proxy` is enabled by default
-there, and you also need `setsebool -P httpd_can_network_connect 1`.
+**3a. HTTPS with Let's Encrypt (public DNS name).** Certbot creates
+`/etc/apache2/sites-available/dmarcula-le-ssl.conf` with the proxy settings, adds the
+HTTP → HTTPS redirect, and renews the certificate automatically through a systemd timer:
+
+```bash
+sudo certbot --apache -d dmarc.example.com --redirect
+```
+
+Then add the forwarded-protocol header and HSTS to the generated HTTPS vhost (inside
+`<VirtualHost *:443>`):
+
+```bash
+sudo sed -i 's|ProxyPassReverse / http://127.0.0.1:8000/|&\n    RequestHeader set X-Forwarded-Proto "https"\n    Header always set Strict-Transport-Security "max-age=31536000"\n    LimitRequestBody 62914560|' \
+  /etc/apache2/sites-available/dmarcula-le-ssl.conf
+sudo apache2ctl configtest && sudo systemctl reload apache2
+```
+
+**3b. HTTPS with your own certificate (internal CA / commercial).** Replace the whole file
+instead of running certbot:
+
+```bash
+sudo tee /etc/apache2/sites-available/dmarcula.conf >/dev/null <<'EOF'
+<VirtualHost *:80>
+    ServerName dmarc.example.com
+    RewriteEngine On
+    RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [END,R=301]
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName dmarc.example.com
+    Protocols h2 http/1.1
+
+    SSLEngine on
+    SSLCertificateFile    /etc/ssl/dmarcula/fullchain.pem    # certificate + intermediates
+    SSLCertificateKeyFile /etc/ssl/dmarcula/privkey.pem
+
+    ProxyPreserveHost On
+    ProxyRequests Off
+    ProxyPass        / http://127.0.0.1:8000/ timeout=120
+    ProxyPassReverse / http://127.0.0.1:8000/
+    RequestHeader set X-Forwarded-Proto "https"
+
+    Header always set Strict-Transport-Security "max-age=31536000"
+    LimitRequestBody 62914560          # 60 MB – manual report uploads
+
+    ErrorLog  ${APACHE_LOG_DIR}/dmarcula-error.log
+    CustomLog ${APACHE_LOG_DIR}/dmarcula-access.log combined
+</VirtualHost>
+EOF
+
+sudo install -d -m 750 /etc/ssl/dmarcula
+# copy fullchain.pem and privkey.pem there, then:
+sudo chmod 640 /etc/ssl/dmarcula/privkey.pem
+sudo apache2ctl configtest && sudo systemctl reload apache2
+```
+
+**4. Finish:** set `COOKIE_SECURE=true` and `BASE_URL=https://dmarc.example.com` in `.env`,
+then `sudo systemctl restart dmarcula`. Open the firewall if needed: `sudo ufw allow 'Apache Full'`.
+
+**Check:**
+
+```bash
+curl -sI https://dmarc.example.com/login | head -5          # HTTP/2 200
+curl -s  https://dmarc.example.com/healthz                  # {"status":"ok"}
+sudo tail -f /var/log/apache2/dmarcula-error.log            # proxy errors (503 = app not running)
+```
+
+### Optional: allow only the internal network
+
+DMARCula has its own login, but you can also hide it from the internet. Add this inside the
+`<VirtualHost *:443>` block:
+
+```apache
+<Location />
+    Require ip 10.0.0.0/8 192.168.0.0/16 203.0.113.10
+</Location>
+```
+
+If you use SSO, the browser only needs to reach Entra ID, so the app may stay internal-only.
+Microsoft never connects to the app.
+
+### Existing site with `DocumentRoot /home/dmarc/public_html`
+
+If the host name already has a vhost (e.g. created by a hosting panel) whose document root is
+`/home/dmarc/public_html`, you don't need a new vhost. Add the proxy lines **inside the
+existing `<VirtualHost *:443>`** (and the `*:80` one, or redirect it to HTTPS):
+
+```apache
+    ProxyPreserveHost On
+    ProxyRequests Off
+    ProxyPass        / http://127.0.0.1:8000/ timeout=120
+    ProxyPassReverse / http://127.0.0.1:8000/
+    RequestHeader set X-Forwarded-Proto "https"
+```
+
+`ProxyPass /` takes precedence over the document root, so nothing from `public_html` is served
+any more. Empty the folder anyway. On panels, put these lines into the panel's "custom Apache
+directives" field for the site, otherwise the panel overwrites manual edits.
+
+### RHEL / Rocky / AlmaLinux
+
+```bash
+sudo dnf install -y httpd mod_ssl
+sudo setsebool -P httpd_can_network_connect 1        # SELinux: allow Apache to connect to 127.0.0.1:8000
+sudo systemctl enable --now httpd
+```
+
+The configuration is the same as above, but:
+- the file goes to `/etc/httpd/conf.d/dmarcula.conf` (no `a2ensite`; every `*.conf` there is loaded),
+- `${APACHE_LOG_DIR}` → `/var/log/httpd`,
+- `mod_proxy`, `mod_headers`, `mod_rewrite` and `mod_http2` are enabled by default,
+- check with `sudo apachectl configtest`, reload with `sudo systemctl reload httpd`,
+- Let's Encrypt: `sudo dnf install -y epel-release && sudo dnf install -y certbot python3-certbot-apache`,
+- firewall: `sudo firewall-cmd --permanent --add-service=http --add-service=https && sudo firewall-cmd --reload`.
+
+### Common Apache problems
+
+| Symptom | Fix |
+|---|---|
+| `503 Service Unavailable` | The app isn't running: `systemctl status dmarcula`. On EL, also run `setsebool -P httpd_can_network_connect 1`. |
+| `Invalid command 'ProxyPass'` | `sudo a2enmod proxy proxy_http` |
+| `Invalid command 'RequestHeader'` / `'Header'` | `sudo a2enmod headers` |
+| Login loops back to the login page | `COOKIE_SECURE=true` while the site is served over plain HTTP. Enable HTTPS, or set `false` temporarily. |
+| SSO error after Microsoft login | `BASE_URL` must be the exact public `https://` URL, and the redirect URI in Entra ID must match it. |
+| Upload fails with `413` | Raise `LimitRequestBody` (bytes). |
 
 ## Hosting panels and `public_html`
 
@@ -388,18 +530,8 @@ sqlite3 data/dmarcula.db ".backup dmarcula-$(date +%F).db"
 Back up `.env` as well. Mailbox credentials in the database are encrypted with a key derived
 from `SECRET_KEY`. Without the same key they can't be decrypted and must be re-entered.
 
-A daily backup via cron:
-
-```bash
-sudo -u dmarc mkdir -p /home/dmarc/backup
-sudo -u dmarc tee /home/dmarc/.my.cnf >/dev/null <<EOF
-[client]
-user=dmarcula
-password=${DB_PASS}
-EOF
-sudo chmod 600 /home/dmarc/.my.cnf
-echo '30 2 * * * mariadb-dump --single-transaction dmarcula | gzip > /home/dmarc/backup/dmarcula-$(date +\%F).sql.gz && find /home/dmarc/backup -name "*.sql.gz" -mtime +30 -delete' | sudo crontab -u dmarc -
-```
+Scheduled backups, data retention, monitoring and log handling are covered in
+[Operations](operations.md).
 
 ## Troubleshooting
 

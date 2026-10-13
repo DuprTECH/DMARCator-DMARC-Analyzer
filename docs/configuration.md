@@ -80,7 +80,8 @@ Notes:
 
 | Variable | Default | Description |
 |---|---|---|
-| `POLL_INTERVAL_MINUTES` | `15` | How often all enabled mailboxes are polled. |
+| `SCHEDULER_ENABLED` | `true` | Built-in scheduler for mailbox polling and DNS refresh. Set `false` to drive both from cron with `python -m app.manage poll` / `dns` instead (see [Operations](operations.md#cron-jobs)). Never run both. |
+| `POLL_INTERVAL_MINUTES` | `15` | How often all enabled mailboxes are polled by the built-in scheduler. |
 | `DNS_REFRESH_HOURS` | `24` | How often every domain's DNS posture is re-checked (8 domains in parallel). New domains are checked right after their first report. |
 | `RESOLVE_PTR` | `true` | Reverse DNS for source IPs. Needed to recognise sending services. |
 | `DNS_SERVERS` | – | Comma-separated resolvers. Empty means the system resolvers. |

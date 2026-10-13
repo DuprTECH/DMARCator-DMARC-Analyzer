@@ -8,7 +8,7 @@ It's inspired by dmarcian, Valimail, EasyDMARC and parsedmarc.
 
 The user interface is in Slovak. The documentation is in English.
 
-📖 **Full documentation: [docs/](docs/README.md)**: [Installation](docs/installation.md) ·
+📖 **Full documentation: [docs/](docs/README.md)**: [Installation](docs/installation.md) · [Operations](docs/operations.md) ·
 [Configuration](docs/configuration.md) · [Authentication](docs/authentication.md) ·
 [Microsoft 365 setup](docs/microsoft-365.md) · [User guide](docs/user-guide.md) ·
 [Architecture](docs/architecture.md)

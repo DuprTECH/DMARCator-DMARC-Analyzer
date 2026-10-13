@@ -2,9 +2,10 @@
 
 | Document | Audience | Contents |
 |---|---|---|
-| [Installation](installation.md) | server admin | step-by-step install on Debian/Ubuntu, RHEL/Rocky/Alma and other distros, MariaDB, nginx/Apache, hosting panels, Docker, updates, backups, troubleshooting |
+| [Installation](installation.md) | server admin | step-by-step install on Debian/Ubuntu, RHEL/Rocky/Alma and other distros, MariaDB, systemd, nginx and Apache (Let's Encrypt or own certificate), hosting panels, Docker, updates, troubleshooting |
 | [Configuration](configuration.md) | server admin | every environment variable, database URLs, mailbox settings |
 | [Authentication](authentication.md) | identity admin | local accounts, LDAP / Active Directory, SSO with Entra ID and other OIDC providers, roles |
+| [Operations](operations.md) | server admin | cron jobs, maintenance commands, backups, data retention, monitoring, logs, certificates |
 | [Microsoft 365 setup](microsoft-365.md) | M365 / DNS admin | report mailbox, app registration, scoping to one mailbox, IMAP OAuth2, DNS records, DKIM |
 | [User guide](user-guide.md) | security / mail team | dashboard, traffic categories, DNS score, policy readiness, rollout from `p=none` to `p=reject` |
 | [Architecture](architecture.md) | developers | components, data flow, data model, performance, security, HTTP interface, extending |

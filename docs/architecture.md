@@ -18,6 +18,7 @@
 
 | Module | File(s) | Responsibility |
 |---|---|---|
+| Maintenance CLI | `app/manage.py` | `poll`, `dns`, `prune`, `status`, `set-password`, `create-admin` for cron and admins |
 | App | `app/main.py` | FastAPI app, session middleware, security headers, error pages, scheduler, admin bootstrap |
 | Config | `app/config.py` | `pydantic-settings`, `.env` loading |
 | Database | `app/db.py`, `app/models.py` | engine setup per backend, SQLite WAL/SAVEPOINT handling, ORM models, forward migrations |

@@ -1,36 +1,38 @@
-{% from "macros.html" import icon, logo %}<!doctype html>
-<html lang="sk">
+{% from "macros.html" import icon, logo, lang_switch %}<!doctype html>
+<html lang="{{ lang }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="author" content="{{ AUTHOR }}">
   <title>{% block title %}{% endblock %} · {{ settings.app_name }}</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%238b1e3f'/%3E%3Cpath d='M5 12c3 0 4-3 4-3s1 4 4 4l3-4 3 4c3 0 4-4 4-4s1 3 4 3c-1 4-5 6-7 6l-4 6-4-6c-2 0-6-2-7-6z' fill='%23fff'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/css/app.css">
+  <script>window.I18N = {{ js_i18n|jsonify }};</script>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
   <script src="/static/js/app.js"></script>
 </head>
 <body>
 {% set nav = [
-  ('/', 'dashboard', 'Prehľad'),
-  ('/domains', 'globe', 'Domény'),
-  ('/sources', 'send', 'Odosielatelia'),
-  ('/reports', 'file', 'Agregované reporty'),
-  ('/forensic', 'alert', 'Forenzné reporty'),
+  ('/', 'dashboard', _('Prehľad')),
+  ('/domains', 'globe', _('Domény')),
+  ('/sources', 'send', _('Odosielatelia')),
+  ('/reports', 'file', _('Agregované reporty')),
+  ('/forensic', 'alert', _('Forenzné reporty')),
   ('/tls', 'lock', 'TLS-RPT'),
-  ('/tools', 'tool', 'Nástroje'),
+  ('/tools', 'tool', _('Nástroje')),
 ] %}
 <div class="shell">
   <aside class="sidebar" id="sidebar">
-    <a class="logo" href="/" style="text-decoration:none">{{ logo() }}<span>{{ settings.app_name }}<small>DMARC Analyzer</small></span></a>
+    <a class="logo" href="/" style="text-decoration:none">{{ logo() }}<span>{{ settings.app_name }}<small>DMARC Analyzer · {{ AUTHOR }}</small></span></a>
     <nav class="nav">
       {% for href, ic, label in nav %}
       <a href="{{ href }}" class="{% if (href == '/' and path == '/') or (href != '/' and path.startswith(href)) %}active{% endif %}">{{ icon(ic) }}{{ label }}</a>
       {% endfor %}
       {% if user and user.role == 'admin' %}
-      <div class="nav-section">Administrácia</div>
-      <a href="/admin/sources" class="{% if path.startswith('/admin/sources') %}active{% endif %}">{{ icon('mail') }}Poštové schránky</a>
-      <a href="/admin/upload" class="{% if path.startswith('/admin/upload') %}active{% endif %}">{{ icon('upload') }}Import reportov</a>
-      <a href="/admin/users" class="{% if path.startswith('/admin/users') %}active{% endif %}">{{ icon('users') }}Používatelia</a>
+      <div class="nav-section">{{ _('Administrácia') }}</div>
+      <a href="/admin/sources" class="{% if path.startswith('/admin/sources') %}active{% endif %}">{{ icon('mail') }}{{ _('Poštové schránky') }}</a>
+      <a href="/admin/upload" class="{% if path.startswith('/admin/upload') %}active{% endif %}">{{ icon('upload') }}{{ _('Import reportov') }}</a>
+      <a href="/admin/users" class="{% if path.startswith('/admin/users') %}active{% endif %}">{{ icon('users') }}{{ _('Používatelia') }}</a>
       {% endif %}
     </nav>
     <div class="spacer"></div>
@@ -38,7 +40,7 @@
     <div class="userbox">
       <a href="/profile" style="color:inherit;text-decoration:none"><strong>{{ user.display_name or user.username }}</strong></a>
       {{ user.role }} · {{ user.auth_source|upper }} ·
-      <form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button type="submit">Odhlásiť</button></form>
+      <form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button type="submit">{{ _('Odhlásiť') }}</button></form>
     </div>
     {% endif %}
   </aside>
@@ -47,12 +49,16 @@
       <button class="icon-btn menu-btn" onclick="document.body.classList.toggle('nav-open')" aria-label="Menu">{{ icon('menu') }}</button>
       <div class="title"><h1>{% block heading %}{% endblock %}</h1><div class="subtitle">{% block subtitle %}{% endblock %}</div></div>
       {% block filters %}{% endblock %}
-      <button class="icon-btn" onclick="toggleTheme()" title="Prepnúť tmavý režim" aria-label="Prepnúť tmavý režim">{{ icon('moon') }}</button>
+      {{ lang_switch(lang) }}
+      <button class="icon-btn" onclick="toggleTheme()" title="{{ _('Prepnúť tmavý režim') }}" aria-label="{{ _('Prepnúť tmavý režim') }}">{{ icon('moon') }}</button>
     </header>
     <main class="content">
-      {% if flash %}<div class="alert {{ flash.level }}">{{ flash.msg }}</div>{% endif %}
+      {% if flash %}<div class="alert {{ flash.level }}">{{ flash.msg|t }}</div>{% endif %}
       {% block content %}{% endblock %}
     </main>
+    <footer class="app-footer">
+      {{ settings.app_name }} – DMARC Analyzer · © {{ year }} <a href="{{ AUTHOR_URL }}" target="_blank" rel="noopener">{{ AUTHOR }}</a>
+    </footer>
   </div>
 </div>
 {% block scripts %}{% endblock %}

@@ -242,3 +242,11 @@ details summary { cursor: pointer; color: var(--text-secondary); font-weight: 50
   .login-art { display: none; }
 }
 @media (forced-colors: active) { .badge, .grade { border: 1px solid CanvasText; } }
+
+/* footer & language switch -------------------------------------------------- */
+.app-footer { padding: 18px 28px 28px; color: var(--text-muted); font-size: 12px; border-top: 1px solid var(--border); }
+.app-footer a { color: var(--text-secondary); font-weight: 600; }
+.lang-switch a { padding: 5px 8px; font-size: 12px; letter-spacing: .03em; }
+.login-lang { position: absolute; top: 20px; right: 20px; }
+@media (max-width: 860px) { .app-footer { padding-left: 16px; padding-right: 16px; } }
+summary svg { width: 16px; height: 16px; vertical-align: -3px; }

@@ -1,41 +1,41 @@
 {% extends "base.html" %}
 {% from "macros.html" import icon %}
-{% block title %}Nástroje{% endblock %}
-{% block heading %}Nástroje{% endblock %}
-{% block subtitle %}Kontrola ľubovoľnej domény a generátor DMARC záznamu{% endblock %}
+{% block title %}{{ _('Nástroje') }}{% endblock %}
+{% block heading %}{{ _('Nástroje') }}{% endblock %}
+{% block subtitle %}{{ _('Kontrola ľubovoľnej domény a generátor DMARC záznamu') }}{% endblock %}
 {% block content %}
 <div class="card">
-  <h2>Kontrola domény</h2>
+  <h2>{{ _('Kontrola domény') }}</h2>
   <form class="actions" method="get" action="/tools">
-    <input type="text" name="lookup" value="{{ lookup }}" placeholder="napr. example.com" style="min-width:280px" required>
-    <button class="btn primary" type="submit">{{ icon('search') }}Skontrolovať</button>
+    <input type="text" name="lookup" value="{{ lookup }}" placeholder="{{ _('napr. example.com') }}" style="min-width:280px" required>
+    <button class="btn primary" type="submit">{{ icon('search') }}{{ _('Skontrolovať') }}</button>
   </form>
-  <p class="hint">Kontroluje DMARC, SPF (vrátane počtu DNS lookupov), DKIM (bežné selektory), MX, MTA-STS, TLS-RPT a BIMI.</p>
+  <p class="hint">{{ _('Kontroluje DMARC, SPF (vrátane počtu DNS lookupov), DKIM (bežné selektory), MX, MTA-STS, TLS-RPT a BIMI.') }}</p>
 </div>
 
 {% if result %}
 <div class="card mt" style="display:flex;gap:18px;align-items:center">
   <span class="grade big {{ result.grade }}">{{ result.grade }}</span>
-  <div><div class="hint">Skóre pre</div><div style="font-size:20px;font-weight:650">{{ result.domain }} – {{ result.score if result.score is not none else '–' }}/100</div></div>
+  <div><div class="hint">{{ _('Skóre pre') }}</div><div style="font-size:20px;font-weight:650">{{ result.domain }} – {{ result.score if result.score is not none else '–' }}/100</div></div>
 </div>
 <div class="mt">{% with dns = result %}{% include "_dns_checks.html" %}{% endwith %}</div>
 {% endif %}
 
 <div class="card mt2">
-  <h2>Generátor DMARC záznamu</h2>
+  <h2>{{ _('Generátor DMARC záznamu') }}</h2>
   <div class="form-grid" id="gen">
-    <div class="field"><label>Doména</label><input type="text" data-k="domain" value="{{ lookup or 'example.com' }}"></div>
-    <div class="field"><label>Politika (p)</label><select data-k="p"><option>none</option><option>quarantine</option><option selected>reject</option></select></div>
-    <div class="field"><label>Politika subdomén (sp)</label><select data-k="sp"><option value="">(ako p)</option><option>none</option><option>quarantine</option><option>reject</option></select></div>
-    <div class="field"><label>Percento (pct)</label><input type="number" min="1" max="100" data-k="pct" value="100"></div>
-    <div class="field"><label>Agregované reporty (rua)</label><input type="text" data-k="rua" placeholder="dmarc@example.com"></div>
-    <div class="field"><label>Forenzné reporty (ruf)</label><input type="text" data-k="ruf" placeholder="voliteľné"></div>
-    <div class="field"><label>DKIM zarovnanie (adkim)</label><select data-k="adkim"><option value="r">relaxed</option><option value="s">strict</option></select></div>
-    <div class="field"><label>SPF zarovnanie (aspf)</label><select data-k="aspf"><option value="r">relaxed</option><option value="s">strict</option></select></div>
-    <div class="field"><label>Forenzné reporty pri (fo)</label><select data-k="fo"><option value="">0 – SPF aj DKIM zlyhali</option><option value="1">1 – SPF alebo DKIM zlyhal</option><option value="d">d – DKIM zlyhal</option><option value="s">s – SPF zlyhal</option></select></div>
+    <div class="field"><label>{{ _('Doména') }}</label><input type="text" data-k="domain" value="{{ lookup or 'example.com' }}"></div>
+    <div class="field"><label>{{ _('Politika') }} (p)</label><select data-k="p"><option>none</option><option>quarantine</option><option selected>reject</option></select></div>
+    <div class="field"><label>{{ _('Politika subdomén') }} (sp)</label><select data-k="sp"><option value="">({{ _('ako p') }})</option><option>none</option><option>quarantine</option><option>reject</option></select></div>
+    <div class="field"><label>{{ _('Percento') }} (pct)</label><input type="number" min="1" max="100" data-k="pct" value="100"></div>
+    <div class="field"><label>{{ _('Agregované reporty') }} (rua)</label><input type="text" data-k="rua" placeholder="dmarc@example.com"></div>
+    <div class="field"><label>{{ _('Forenzné reporty') }} (ruf)</label><input type="text" data-k="ruf" placeholder="{{ _('voliteľné') }}"></div>
+    <div class="field"><label>{{ _('DKIM zarovnanie') }} (adkim)</label><select data-k="adkim"><option value="r">relaxed</option><option value="s">strict</option></select></div>
+    <div class="field"><label>{{ _('SPF zarovnanie') }} (aspf)</label><select data-k="aspf"><option value="r">relaxed</option><option value="s">strict</option></select></div>
+    <div class="field"><label>{{ _('Forenzné reporty pri') }} (fo)</label><select data-k="fo"><option value="">0 – {{ _('SPF aj DKIM zlyhali') }}</option><option value="1">1 – {{ _('SPF alebo DKIM zlyhal') }}</option><option value="d">d – {{ _('DKIM zlyhal') }}</option><option value="s">s – {{ _('SPF zlyhal') }}</option></select></div>
   </div>
-  <div class="mt"><div class="hint">Záznam (TXT) pre <span class="mono" id="gen-name"></span>:</div><div class="record" id="gen-out"></div>
-    <button class="btn sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('gen-out').textContent)">Kopírovať</button></div>
+  <div class="mt"><div class="hint">{{ _('Záznam (TXT) pre') }} <span class="mono" id="gen-name"></span>:</div><div class="record" id="gen-out"></div>
+    <button class="btn sm" type="button" onclick="navigator.clipboard.writeText(document.getElementById('gen-out').textContent)">{{ _('Kopírovať') }}</button></div>
 </div>
 {% endblock %}
 {% block scripts %}

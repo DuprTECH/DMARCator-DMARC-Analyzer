@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% from "macros.html" import period, pager, empty with context %}
-{% block title %}Forenzné reporty{% endblock %}
-{% block heading %}Forenzné reporty (RUF){% endblock %}
-{% block subtitle %}{{ total|num }} reportov o jednotlivých zlyhaných správach{% endblock %}
+{% block title %}{{ _('Forenzné reporty') }}{% endblock %}
+{% block heading %}{{ _('Forenzné reporty') }} (RUF){% endblock %}
+{% block subtitle %}{{ _('{n} reportov o jednotlivých zlyhaných správach', n=total|num) }}{% endblock %}
 {% block filters %}{{ period(f, days, '/forensic') }}{% endblock %}
 {% block content %}
 <div class="card flush">
   <div class="table-wrap"><table>
-    <thead><tr><th>Doručené</th><th>Doména</th><th>Zdroj</th><th>Od / Komu</th><th>Predmet</th><th>Zlyhanie</th><th>Výsledok</th><th>Reportér</th></tr></thead>
+    <thead><tr><th>{{ _('Doručené') }}</th><th>{{ _('Doména') }}</th><th>{{ _('Zdroj') }}</th><th>{{ _('Od / Komu') }}</th><th>{{ _('Predmet') }}</th><th>{{ _('Zlyhanie') }}</th><th>{{ _('Výsledok') }}</th><th>{{ _('Reportér') }}</th></tr></thead>
     <tbody>
     {% for r in items %}
       <tr>
@@ -20,7 +20,7 @@
         <td>{{ r.delivery_result or '–' }}</td>
         <td class="sub">{{ r.reporter or '–' }}</td>
       </tr>
-    {% else %}<tr><td colspan="8">{{ empty('Žiadne forenzné reporty. Väčšina veľkých poskytovateľov (Google, Microsoft) ich neposiela; nastavte ruf= a fo=1 v DMARC zázname.') }}</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="8">{{ empty(_('Žiadne forenzné reporty. Väčšina veľkých poskytovateľov (Google, Microsoft) ich neposiela; nastavte ruf= a fo=1 v DMARC zázname.')) }}</td></tr>{% endfor %}
     </tbody>
   </table></div>
   {{ pager(page, pages, '/forensic?days=' ~ days ~ ('&domain=' ~ f.domain if f.domain else '')) }}

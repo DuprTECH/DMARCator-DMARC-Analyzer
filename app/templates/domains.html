@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% from "macros.html" import period, policy_badge, rate_bar, icon, empty with context %}
-{% block title %}Domény{% endblock %}
-{% block heading %}Domény{% endblock %}
-{% block subtitle %}{{ domains|length }} domén · {{ f.start|dt }} – {{ f.end|dt }}{% endblock %}
+{% block title %}{{ _('Domény') }}{% endblock %}
+{% block heading %}{{ _('Domény') }}{% endblock %}
+{% block subtitle %}{{ _('{n} domén', n=domains|length) }} · {{ f.start|dt }} – {{ f.end|dt }}{% endblock %}
 {% block filters %}
 {% if user.role == 'admin' %}
 <form method="post" action="/admin/dns-refresh"><input type="hidden" name="csrf_token" value="{{ csrf }}">
-  <button class="btn" type="submit">{{ icon('refresh') }}Skontrolovať DNS</button></form>
+  <button class="btn" type="submit">{{ icon('refresh') }}{{ _('Skontrolovať DNS') }}</button></form>
 {% endif %}
 {{ period(f, days, '/domains') }}
 {% endblock %}
@@ -14,45 +14,57 @@
 {% set by_policy = {'reject': 0, 'quarantine': 0, 'none': 0, '': 0} %}
 {% set by_level = {'error': 0, 'warn': 0, 'ok': 0} %}
 {% for d in domains %}
-  {% set _ = by_policy.update({(d.policy or ''): by_policy.get(d.policy or '', 0) + 1}) %}
-  {% set _ = by_level.update({(d.level or 'ok'): by_level.get(d.level or 'ok', 0) + 1}) %}
+  {% set _tmp = by_policy.update({(d.policy or ''): by_policy.get(d.policy or '', 0) + 1}) %}
+  {% set _tmp = by_level.update({(d.level or 'ok'): by_level.get(d.level or 'ok', 0) + 1}) %}
 {% endfor %}
 
 <div class="grid g-kpi">
-  <div class="card kpi"><div class="label">p=reject</div><div class="value" style="color:var(--good-text)">{{ by_policy.reject }}</div><div class="foot">plná ochrana</div></div>
-  <div class="card kpi"><div class="label">p=quarantine</div><div class="value" style="color:var(--warning-text)">{{ by_policy.quarantine }}</div><div class="foot">čiastočná ochrana</div></div>
-  <div class="card kpi"><div class="label">p=none</div><div class="value" style="color:var(--critical-text)">{{ by_policy.none }}</div><div class="foot">iba monitoring</div></div>
-  <div class="card kpi"><div class="label">Bez DMARC</div><div class="value" style="color:var(--critical-text)">{{ by_policy[''] }}</div><div class="foot">nechránené</div></div>
-  <div class="card kpi"><div class="label">Vyžaduje zásah</div><div class="value">{{ by_level.error + by_level.warn }}</div><div class="foot">{{ by_level.error }} chýb · {{ by_level.warn }} upozornení</div></div>
+  <div class="card kpi"><div class="label">p=reject</div><div class="value" style="color:var(--good-text)">{{ by_policy.reject }}</div><div class="foot">{{ _('plná ochrana') }}</div></div>
+  <div class="card kpi"><div class="label">p=quarantine</div><div class="value" style="color:var(--warning-text)">{{ by_policy.quarantine }}</div><div class="foot">{{ _('čiastočná ochrana') }}</div></div>
+  <div class="card kpi"><div class="label">p=none</div><div class="value" style="color:var(--critical-text)">{{ by_policy.none }}</div><div class="foot">{{ _('iba monitoring') }}</div></div>
+  <div class="card kpi"><div class="label">{{ _('Bez DMARC') }}</div><div class="value" style="color:var(--critical-text)">{{ by_policy[''] }}</div><div class="foot">{{ _('nechránené') }}</div></div>
+  <div class="card kpi"><div class="label">{{ _('Vyžaduje zásah') }}</div><div class="value">{{ by_level.error + by_level.warn }}</div><div class="foot">{{ _('{e} chýb · {w} upozornení', e=by_level.error, w=by_level.warn) }}</div></div>
 </div>
+
+{% if user.role == 'admin' %}
+<details class="card mt">
+  <summary>{{ icon('globe') }} {{ _('Pridať domény ručne') }}</summary>
+  <form class="mt" method="post" action="/admin/domains/add">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <p class="hint" style="margin-top:0">{{ _('Domény sa pridávajú aj automaticky z prijatých reportov. Ručne pridané domény sa hneď skontrolujú (DMARC, SPF, DKIM, MX, MTA-STS, TLS-RPT, BIMI) a potom raz denne – aj keď pre ne ešte neprišiel žiadny report.') }}</p>
+    <textarea name="domains" rows="4" placeholder="example.com&#10;example.org" required></textarea>
+    <div class="actions mt"><button class="btn primary" type="submit">{{ _('Pridať a skontrolovať') }}</button><span class="hint">{{ _('jedna doména na riadok, alebo oddelené čiarkou') }}</span></div>
+  </form>
+</details>
+{% endif %}
 
 <div class="card flush mt">
   <div class="card-head">
     <div class="actions" id="dom-filters">
-      <input type="search" id="dom-q" placeholder="Hľadať doménu…" aria-label="Hľadať doménu" style="min-width:220px">
-      <select id="dom-policy" aria-label="Politika">
-        <option value="">Všetky politiky</option><option value="reject">p=reject</option><option value="quarantine">p=quarantine</option>
-        <option value="none">p=none</option><option value="-">bez DMARC</option>
+      <input type="search" id="dom-q" placeholder="{{ _('Hľadať doménu…') }}" aria-label="{{ _('Hľadať doménu…') }}" style="min-width:220px">
+      <select id="dom-policy" aria-label="{{ _('Politika') }}">
+        <option value="">{{ _('Všetky politiky') }}</option><option value="reject">p=reject</option><option value="quarantine">p=quarantine</option>
+        <option value="none">p=none</option><option value="-">{{ _('bez DMARC') }}</option>
       </select>
-      <select id="dom-level" aria-label="Stav">
-        <option value="">Všetky stavy</option><option value="error">Chyba</option><option value="warn">Upozornenie</option><option value="ok">OK</option>
+      <select id="dom-level" aria-label="{{ _('Stav') }}">
+        <option value="">{{ _('Všetky stavy') }}</option><option value="error">{{ _('Chyba') }}</option><option value="warn">{{ _('Upozornenie') }}</option><option value="ok">OK</option>
       </select>
-      <label class="toggle"><input type="checkbox" id="dom-active"> iba s prevádzkou</label>
+      <label class="toggle"><input type="checkbox" id="dom-active"> {{ _('iba s prevádzkou') }}</label>
     </div>
-    <span class="hint" id="dom-count"></span>
+    <span class="hint" id="dom-count" data-of="{{ _('z') }}"></span>
   </div>
   <div class="table-wrap"><table id="dom-table">
-    <thead><tr><th>Doména</th><th>Stav</th><th>Politika</th><th>DNS</th><th class="num">Správ</th><th>DMARC súlad</th><th class="num">Hrozby</th><th>Trend</th><th>Posledný report</th></tr></thead>
+    <thead><tr><th>{{ _('Doména') }}</th><th>{{ _('Stav') }}</th><th>{{ _('Politika') }}</th><th>DNS</th><th class="num">{{ _('Správ') }}</th><th>{{ _('DMARC súlad') }}</th><th class="num">{{ _('Hrozby') }}</th><th>{{ _('Trend') }}</th><th>{{ _('Posledný report') }}</th></tr></thead>
     <tbody>
     {% for d in domains %}
       <tr data-name="{{ d.name }}" data-policy="{{ d.policy or '-' }}" data-level="{{ d.level or 'ok' }}" data-total="{{ d.total }}">
         <td><a href="/domains/{{ d.name }}?days={{ days }}"><strong>{{ d.name }}</strong></a></td>
-        <td title="{{ d.issues|join(' · ') }}">
-          {% if d.level == 'error' %}<span class="badge error">Chyba</span>{% elif d.level == 'warn' %}<span class="badge warn">Upozornenie</span>{% else %}<span class="badge ok">OK</span>{% endif %}
-          {% if d.issues %}<div class="sub ellipsis" style="max-width:240px">{{ d.issues[0] }}</div>{% endif %}
+        <td title="{{ d.issues|map('t')|join(' · ') }}">
+          {% if d.level == 'error' %}<span class="badge error">{{ _('Chyba') }}</span>{% elif d.level == 'warn' %}<span class="badge warn">{{ _('Upozornenie') }}</span>{% else %}<span class="badge ok">OK</span>{% endif %}
+          {% if d.issues %}<div class="sub ellipsis" style="max-width:240px">{{ d.issues[0]|t }}</div>{% endif %}
         </td>
         <td>{{ policy_badge(d.policy) }}</td>
-        <td><span class="grade {{ d.grade or '?' }}" title="Skóre {{ d.score if d.score is not none else '–' }}/100">{{ d.grade or '?' }}</span></td>
+        <td><span class="grade {{ d.grade or '?' }}" title="{{ _('Skóre') }} {{ d.score if d.score is not none else '–' }}/100">{{ d.grade or '?' }}</span></td>
         <td class="num">{{ d.total|num }}</td>
         <td>{{ rate_bar(d.pass_pct) }}</td>
         <td class="num">{% if d.threat %}<span style="color:var(--critical-text);font-weight:600">{{ d.threat|num }}</span>{% else %}0{% endif %}</td>
@@ -60,7 +72,7 @@
         <td class="sub">{{ d.last_seen|dt }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="9">{{ empty('Domény sa pridávajú automaticky z prijatých reportov.') }}</td></tr>
+      <tr><td colspan="9">{{ empty(_('Domény sa pridávajú automaticky z prijatých reportov.')) }}</td></tr>
     {% endfor %}
     </tbody>
   </table></div>
@@ -71,6 +83,7 @@
 (function () {
   const q = document.getElementById("dom-q"), pol = document.getElementById("dom-policy"),
         lvl = document.getElementById("dom-level"), act = document.getElementById("dom-active");
+  const count = document.getElementById("dom-count");
   const rows = Array.from(document.querySelectorAll("#dom-table tbody tr[data-name]"));
   const params = new URLSearchParams(location.search);
   if (params.get("level")) lvl.value = params.get("level");
@@ -83,7 +96,7 @@
       r.style.display = ok ? "" : "none";
       shown += ok;
     });
-    document.getElementById("dom-count").textContent = `${shown} z ${rows.length}`;
+    count.textContent = `${shown} ${count.dataset.of} ${rows.length}`;
   }
   [q, pol, lvl, act].forEach((el) => el.addEventListener("input", apply));
   apply();

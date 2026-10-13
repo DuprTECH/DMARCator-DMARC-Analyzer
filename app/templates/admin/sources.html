@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% from "macros.html" import icon, status_badge, empty %}
-{% block title %}Poštové schránky{% endblock %}
-{% block heading %}Poštové schránky{% endblock %}
-{% block subtitle %}Automatické sťahovanie reportov každých {{ poll }} min{% endblock %}
+{% block title %}{{ _('Poštové schránky') }}{% endblock %}
+{% block heading %}{{ _('Poštové schránky') }}{% endblock %}
+{% block subtitle %}{{ _('Automatické sťahovanie reportov každých {n} min', n=poll) }}{% endblock %}
 {% block filters %}
 <a class="btn primary" href="/admin/sources/new?kind=graph">{{ icon('mail') }}Exchange Online (Graph)</a>
 <a class="btn" href="/admin/sources/new?kind=imap">IMAP</a>
@@ -10,34 +10,34 @@
 {% block content %}
 <div class="card flush">
   <div class="table-wrap"><table>
-    <thead><tr><th>Názov</th><th>Typ</th><th>Stav</th><th>Posledný beh</th><th>Výsledok</th><th></th></tr></thead>
+    <thead><tr><th>{{ _('Názov') }}</th><th>{{ _('Typ') }}</th><th>{{ _('Stav') }}</th><th>{{ _('Posledný beh') }}</th><th>{{ _('Výsledok') }}</th><th></th></tr></thead>
     <tbody>
     {% for s in items %}
       <tr>
-        <td><a href="/admin/sources/{{ s.id }}"><strong>{{ s.name }}</strong></a>{% if not s.enabled %} <span class="badge plain">vypnuté</span>{% endif %}</td>
+        <td><a href="/admin/sources/{{ s.id }}"><strong>{{ s.name }}</strong></a>{% if not s.enabled %} <span class="badge plain">{{ _('vypnuté') }}</span>{% endif %}</td>
         <td>{{ 'Microsoft Graph (EXO)' if s.kind == 'graph' else 'IMAP' }}</td>
-        <td>{% if s.last_status %}{{ status_badge(s.last_status) }}{% else %}<span class="sub">ešte nebežalo</span>{% endif %}</td>
+        <td>{% if s.last_status %}{{ status_badge(s.last_status) }}{% else %}<span class="sub">{{ _('ešte nebežalo') }}</span>{% endif %}</td>
         <td class="sub">{{ s.last_run|dt }} UTC</td>
-        <td class="wrap sub" style="max-width:420px">{{ s.last_message or '' }}</td>
+        <td class="wrap sub" style="max-width:420px">{{ (s.last_message or '')|t }}</td>
         <td><div class="actions" style="justify-content:flex-end">
           <form method="post" action="/admin/sources/{{ s.id }}/test"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="btn sm">Test</button></form>
-          <form method="post" action="/admin/sources/{{ s.id }}/run"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="btn sm">{{ icon('refresh') }}Spustiť</button></form>
-          <form method="post" action="/admin/sources/{{ s.id }}/delete" data-confirm="Odstrániť zdroj {{ s.name }}? Reporty zostanú zachované."><input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="btn sm danger">Odstrániť</button></form>
+          <form method="post" action="/admin/sources/{{ s.id }}/run"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="btn sm">{{ icon('refresh') }}{{ _('Spustiť') }}</button></form>
+          <form method="post" action="/admin/sources/{{ s.id }}/delete" data-confirm="{{ _('Odstrániť zdroj {name}? Reporty zostanú zachované.', name=s.name) }}"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="btn sm danger">{{ _('Odstrániť') }}</button></form>
         </div></td>
       </tr>
-    {% else %}<tr><td colspan="6">{{ empty('Zatiaľ nie je pridaná žiadna schránka.') }}</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="6">{{ empty(_('Zatiaľ nie je pridaná žiadna schránka.')) }}</td></tr>{% endfor %}
     </tbody>
   </table></div>
 </div>
 
 <div class="card flush mt">
-  <div class="card-head"><h2>Log spracovania</h2><a class="hint" href="/admin/sources">obnoviť</a></div>
+  <div class="card-head"><h2>{{ _('Log spracovania') }}</h2><a class="hint" href="/admin/sources">{{ _('obnoviť') }}</a></div>
   <div class="table-wrap"><table>
-    <thead><tr><th>Čas (UTC)</th><th>Zdroj</th><th>Úroveň</th><th>Správa</th></tr></thead>
+    <thead><tr><th>{{ _('Čas (UTC)') }}</th><th>{{ _('Zdroj') }}</th><th>{{ _('Úroveň') }}</th><th>{{ _('Správa') }}</th></tr></thead>
     <tbody>
     {% for l in logs %}<tr><td class="sub" style="white-space:nowrap">{{ l.created_at|dt }}</td><td>{{ l.source }}</td>
-      <td><span class="badge {{ 'error' if l.level == 'error' else ('warn' if l.level == 'warn' else 'info') }}">{{ l.level }}</span></td><td class="wrap">{{ l.message }}</td></tr>
-    {% else %}<tr><td colspan="4" class="hint">Log je prázdny.</td></tr>{% endfor %}
+      <td><span class="badge {{ 'error' if l.level == 'error' else ('warn' if l.level == 'warn' else 'info') }}">{{ l.level }}</span></td><td class="wrap">{{ l.message|t }}</td></tr>
+    {% else %}<tr><td colspan="4" class="hint">{{ _('Log je prázdny.') }}</td></tr>{% endfor %}
     </tbody>
   </table></div>
 </div>

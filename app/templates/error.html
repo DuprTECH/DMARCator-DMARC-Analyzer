@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Chyba {{ code }}{% endblock %}
-{% block heading %}Chyba {{ code }}{% endblock %}
+{% block title %}{{ _('Chyba') }} {{ code }}{% endblock %}
+{% block heading %}{{ _('Chyba') }} {{ code }}{% endblock %}
 {% block content %}
 <div class="card"><div class="empty">
   <div style="font-size:48px;font-weight:700;color:var(--text-muted)">{{ code }}</div>
-  <p>{{ detail if detail and detail != 'Not Found' else ('Stránka neexistuje.' if code == 404 else 'Nastala chyba.') }}</p>
-  <a class="btn" href="/">Späť na prehľad</a>
+  <p>{{ detail|t if detail and detail != 'Not Found' else (_('Stránka neexistuje.') if code == 404 else _('Nastala chyba.')) }}</p>
+  <a class="btn" href="/">{{ _('Späť na prehľad') }}</a>
 </div></div>
 {% endblock %}

@@ -339,14 +339,15 @@ def _assess(dom: Domain, policy: str, cats: dict, days_with_data: int) -> dict:
         recs.append({"level": "info", "msg": "V zvolenom období nie sú žiadne agregované dáta."})
     elif policy == "none":
         if compliance is not None and compliance >= 98 and days_with_data >= 14:
-            recs.append({"level": "ok", "msg": f"Legitímna pošta je v {compliance}% súlade – môžete prejsť na p=quarantine (napr. pct=25 → 100)."})
+            recs.append({"level": "ok", "ready": True,
+                         "msg": f"Legitímna pošta je v {compliance}% súlade – môžete prejsť na p=quarantine (napr. pct=25 → 100)."})
         else:
             recs.append({"level": "warn", "msg": "Pred sprísnením politiky opravte SPF/DKIM pri legitímnych odosielateľoch (pozri Nesúlad)."})
         if cats["threat"]:
             recs.append({"level": "warn", "msg": f"{_fmt(cats['threat'])} správ z neautorizovaných zdrojov bolo doručených, pretože politika je p=none."})
     elif policy == "quarantine":
         if compliance is not None and compliance >= 99:
-            recs.append({"level": "ok", "msg": f"Súlad {compliance}% – doména je pripravená na p=reject."})
+            recs.append({"level": "ok", "ready": True, "msg": f"Súlad {compliance}% – doména je pripravená na p=reject."})
         else:
             recs.append({"level": "warn", "msg": "Pred p=reject vyriešte nesúladných legitímnych odosielateľov."})
     elif policy == "reject":
@@ -356,7 +357,7 @@ def _assess(dom: Domain, policy: str, cats: dict, days_with_data: int) -> dict:
     for key in ("spf", "dkim", "mta_sts"):
         for issue in (dns.get(key) or {}).get("issues", []):
             if issue["level"] == "error":
-                recs.append({"level": "error", "msg": f"{key.upper().replace('_', '-')}: {issue['msg']}"})
+                recs.append({"level": "error", "check": key.upper().replace("_", "-"), "msg": issue["msg"]})
     levels = {r["level"] for r in recs}
     level = "error" if "error" in levels else "warn" if "warn" in levels else "ok"
     return {"policy": policy or None, "compliance": compliance, "days_with_data": days_with_data,
@@ -382,7 +383,7 @@ def insights(db: Session, f: Filter, limit: int | None = 30) -> list[dict]:
     out = []
     for name, r in readiness_all(db, f).items():
         for rec in r["recommendations"]:
-            if rec["level"] in ("error", "warn") or "pripravená" in rec["msg"] or "môžete prejsť" in rec["msg"]:
+            if rec["level"] in ("error", "warn") or rec.get("ready"):
                 out.append({**rec, "domain": name})
     order = {"error": 0, "warn": 1, "ok": 2, "info": 3}
     out.sort(key=lambda r: order.get(r["level"], 9))

@@ -1,6 +1,6 @@
 # User guide
 
-The UI is in Slovak. This guide gives the English meaning next to each UI term.
+The UI is available in **Slovak and English**. Switch the language with **SK / EN** in the top bar or on the sign-in page; the choice is remembered in the browser (cookie). The default for new visitors is set by `DEFAULT_LANGUAGE`. This guide uses the English UI terms and, where useful, gives the Slovak term in parentheses.
 
 ## Filters
 
@@ -38,7 +38,7 @@ SPF domain, plus the ASN when GeoIP is configured.
 
 ## Domains (*Domény*)
 
-Every domain for which at least one report has arrived is listed automatically. The page has:
+Every domain for which at least one report has arrived is listed automatically. Admins can also **add domains manually** (*Add domains manually*, one per line or comma separated). Manually added domains are DNS-checked immediately and then daily with all other domains, even before their first report arrives, which is handy for parked domains. The page has:
 
 - **Summary tiles:** how many domains publish `p=reject`, `p=quarantine`, `p=none` or no DMARC
   record, and how many need attention.

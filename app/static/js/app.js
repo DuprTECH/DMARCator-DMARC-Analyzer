@@ -37,9 +37,16 @@
   }
 
   const CAT_COLOR = { compliant: "good", forwarded: "accent", noncompliant: "warning", threat: "critical" };
-  const nf = new Intl.NumberFormat("sk-SK");
+  const LANG = root.lang === "en" ? "en" : "sk";
+  /** Translate a Slovak UI string (dictionary provided by the server in window.I18N). */
+  const t = (s) => ((window.I18N || {})[s] || s);
+  const nf = new Intl.NumberFormat(LANG === "en" ? "en-US" : "sk-SK");
   const fmt = (n) => (n == null ? "–" : nf.format(n));
-  const pct = (n) => (n == null ? "–" : n.toFixed(1).replace(".", ",") + " %");
+  const pct = (n) => {
+    if (n == null) return "–";
+    const s = n.toFixed(1) + "\u00a0%";
+    return LANG === "en" ? s : s.replace(".", ",");
+  };
 
   // -------------------------------------------------------------- registry
   const charts = [];
@@ -74,7 +81,7 @@
       axisLabel: { color: p.muted, fontSize: 11 }, splitLine: { lineStyle: { color: p.grid } },
     };
   }
-  const shortDay = (d) => { const [y, m, dd] = d.split("-"); return `${+dd}.${+m}.`; };
+  const shortDay = (d) => { const [, m, dd] = d.split("-"); return LANG === "en" ? `${+m}/${+dd}` : `${+dd}.${+m}.`; };
 
   // --------------------------------------------------------------- builders
   const DM = {
@@ -83,20 +90,20 @@
     /** Stacked daily volume: compliant vs failing (forwarded / other). */
     volume(el, timeline) {
       return register(el, (p) => {
-        const days = timeline.map((t) => shortDay(t.day));
+        const days = timeline.map((d) => shortDay(d.day));
         const ser = [
-          { name: "Prešlo DMARC", key: (t) => t.pass, color: p.good },
-          { name: "Preposlané (fail)", key: (t) => Math.min(t.forwarded, t.fail), color: p.accent },
-          { name: "Zlyhalo", key: (t) => Math.max(t.fail - t.forwarded, 0), color: p.critical },
+          { name: t("Prešlo DMARC"), key: (d) => d.pass, color: p.good },
+          { name: t("Preposlané (fail)"), key: (d) => Math.min(d.forwarded, d.fail), color: p.accent },
+          { name: t("Zlyhalo"), key: (d) => Math.max(d.fail - d.forwarded, 0), color: p.critical },
         ];
         return Object.assign(base(p), {
           grid: { left: 8, right: 8, top: 36, bottom: 4, containLabel: true },
           legend: { top: 0, left: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10, textStyle: { color: p.text2 } },
           tooltip: Object.assign(base(p).tooltip, { trigger: "axis", axisPointer: { type: "shadow", shadowStyle: { color: p.surface2, opacity: .6 } },
             formatter: (items) => {
-              const t = timeline[items[0].dataIndex];
-              return `<b>${t.day}</b><br>` + items.map((i) => `${i.marker} ${i.seriesName}: <b>${fmt(i.value)}</b>`).join("<br>") +
-                `<br>Spolu: <b>${fmt(t.total)}</b> · súlad <b>${pct(t.pass_pct)}</b>`;
+              const d = timeline[items[0].dataIndex];
+              return `<b>${d.day}</b><br>` + items.map((i) => `${i.marker} ${i.seriesName}: <b>${fmt(i.value)}</b>`).join("<br>") +
+                `<br>${t("Spolu")}: <b>${fmt(d.total)}</b> · ${t("súlad")} <b>${pct(d.pass_pct)}</b>`;
             } }),
           xAxis: Object.assign({ type: "category", data: days }, axisCommon(p), { splitLine: { show: false } }),
           yAxis: Object.assign({ type: "value" }, axisCommon(p)),
@@ -114,11 +121,11 @@
       return register(el, (p) => Object.assign(base(p), {
         grid: { left: 8, right: 12, top: 18, bottom: 4, containLabel: true },
         tooltip: Object.assign(base(p).tooltip, { trigger: "axis", axisPointer: { type: "line", lineStyle: { color: p.muted } },
-          formatter: (items) => { const t = timeline[items[0].dataIndex]; return `<b>${t.day}</b><br>Súlad: <b>${pct(t.pass_pct)}</b><br>Správ: ${fmt(t.total)}`; } }),
-        xAxis: Object.assign({ type: "category", boundaryGap: false, data: timeline.map((t) => shortDay(t.day)) }, axisCommon(p), { splitLine: { show: false } }),
+          formatter: (items) => { const d = timeline[items[0].dataIndex]; return `<b>${d.day}</b><br>${t("Súlad")}: <b>${pct(d.pass_pct)}</b><br>${t("Správ")}: ${fmt(d.total)}`; } }),
+        xAxis: Object.assign({ type: "category", boundaryGap: false, data: timeline.map((d) => shortDay(d.day)) }, axisCommon(p), { splitLine: { show: false } }),
         yAxis: Object.assign({ type: "value", min: 0, max: 100, axisLabel: { color: p.muted, fontSize: 11, formatter: "{value} %" } }, { splitLine: { lineStyle: { color: p.grid } } }),
         series: [{
-          type: "line", data: timeline.map((t) => t.pass_pct), connectNulls: true, smooth: 0.25, symbol: "circle", symbolSize: 8, showSymbol: false,
+          type: "line", data: timeline.map((d) => d.pass_pct), connectNulls: true, smooth: 0.25, symbol: "circle", symbolSize: 8, showSymbol: false,
           lineStyle: { width: 2, color: p.accent }, itemStyle: { color: p.accent, borderColor: p.surface, borderWidth: 2 },
           areaStyle: { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: p.accent + "33" }, { offset: 1, color: p.accent + "00" }] } },
           markLine: { silent: true, symbol: "none", lineStyle: { color: p.good, type: "dashed" }, label: { color: p.muted, formatter: "98 %", position: "insideEndTop" }, data: [{ yAxis: 98 }] },
@@ -133,13 +140,18 @@
         return Object.assign(base(p), {
           tooltip: Object.assign(base(p).tooltip, { trigger: "item", formatter: (i) => `${i.marker} ${i.name}<br><b>${fmt(i.value)}</b> (${pct(i.percent)})` }),
           legend: { bottom: 0, left: "center", icon: "circle", itemWidth: 9, itemGap: 12, textStyle: { color: p.text2, fontSize: 11.5 },
-            formatter: (n) => { const it = items.find((x) => x.label === n); return `${n}  ${total ? pct(100 * it.value / total) : "–"}`; } },
-          title: { text: fmt(total), subtext: "správ", left: "center", top: "33%", textAlign: "center",
-            textStyle: { color: p.text, fontSize: 20, fontWeight: 650 }, subtextStyle: { color: p.muted, fontSize: 11 } },
+            formatter: (n) => { const it = items.find((x) => t(x.label) === n); return `${n}  ${total ? pct(100 * it.value / total) : "–"}`; } },
           series: [{
             type: "pie", radius: ["50%", "70%"], center: ["50%", "42%"], avoidLabelOverlap: true, label: { show: false },
             itemStyle: { borderColor: p.surface, borderWidth: 2, borderRadius: 4 },
-            data: items.map((it) => ({ name: it.label, value: it.value, itemStyle: { color: p[CAT_COLOR[it.key]] || p.series[0] } })),
+            data: items.map((it) => ({ name: t(it.label), value: it.value, itemStyle: { color: p[CAT_COLOR[it.key]] || p.series[0] } })),
+          }, {
+            // total in the middle of the ring – a single centred label keeps both lines aligned
+            type: "pie", radius: ["0%", "45%"], center: ["50%", "42%"], silent: true, tooltip: { show: false },
+            itemStyle: { color: "transparent" }, labelLine: { show: false },
+            label: { show: true, position: "center", formatter: `{v|${fmt(total)}}\n{s|${t("správ")}}`,
+              rich: { v: { color: p.text, fontSize: 20, fontWeight: 650, lineHeight: 26 }, s: { color: p.muted, fontSize: 11, lineHeight: 16 } } },
+            data: [{ value: 1, name: "" }],
           }],
         });
       });
@@ -153,7 +165,7 @@
         series: [{
           type: "pie", radius: ["55%", "78%"], center: ["32%", "50%"], label: { show: false },
           itemStyle: { borderColor: p.surface, borderWidth: 2, borderRadius: 4 },
-          data: items.map((it, i) => ({ name: it.label, value: it.value, itemStyle: { color: colorOf(p, colors ? colors[i] : "s" + ((i % 8) + 1)) } })),
+          data: items.map((it, i) => ({ name: t(it.label), value: it.value, itemStyle: { color: colorOf(p, colors ? colors[i] : "s" + ((i % 8) + 1)) } })),
         }],
       }));
     },
@@ -167,7 +179,7 @@
           grid: { left: 8, right: 48, top: 4, bottom: 4, containLabel: true },
           tooltip: Object.assign(base(p).tooltip, { trigger: "item", formatter: (i) => `${i.name}<br><b>${fmt(i.value)}</b>` }),
           xAxis: { type: "value", show: false },
-          yAxis: { type: "category", data: rows.map((r) => r.name), axisLine: { show: false }, axisTick: { show: false },
+          yAxis: { type: "category", data: rows.map((r) => t(r.name)), axisLine: { show: false }, axisTick: { show: false },
             axisLabel: { color: p.text2, fontSize: 12, width: 150, overflow: "truncate" } },
           series: [{
             type: "bar", barMaxWidth: 14, data: rows.map((r) => r.value),
@@ -187,7 +199,7 @@
           echarts.registerMap("world", geo);
           const max = Math.max(1, ...items.map((i) => i.total));
           register(el, (p) => Object.assign(base(p), {
-            tooltip: Object.assign(base(p).tooltip, { trigger: "item", formatter: (i) => i.data ? `${i.name}<br>Správ: <b>${fmt(i.data.value)}</b><br>Zlyhalo: <b>${fmt(i.data.fail)}</b>` : i.name }),
+            tooltip: Object.assign(base(p).tooltip, { trigger: "item", formatter: (i) => i.data ? `${i.name}<br>${t("Správ")}: <b>${fmt(i.data.value)}</b><br>${t("Zlyhalo")}: <b>${fmt(i.data.fail)}</b>` : i.name }),
             visualMap: { min: 0, max, show: false, inRange: { color: ["#cde2fb", "#86b6ef", "#3987e5", "#1c5cab", "#0d366b"] } },
             series: [{
               type: "map", map: "world", roam: true, zoom: 1.15, emphasis: { label: { show: false }, itemStyle: { areaColor: p.warning } },
@@ -196,7 +208,7 @@
             }],
           }));
         })
-        .catch(() => { el.innerHTML = '<div class="empty">Mapa nie je dostupná (offline).</div>'; });
+        .catch(() => { el.innerHTML = `<div class="empty">${t("Mapa nie je dostupná (offline).")}</div>`; });
     },
   };
 

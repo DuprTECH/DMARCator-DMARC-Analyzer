@@ -1,57 +1,57 @@
 {% extends "base.html" %}
 {% from "macros.html" import period, cat_badge, rate_bar, icon, empty with context %}
-{% block title %}Odosielatelia{% endblock %}
-{% block heading %}Odosielatelia{% endblock %}
-{% block subtitle %}Kto posiela poštu v mene vašich domén · {{ f.start|dt }} – {{ f.end|dt }}{% endblock %}
+{% block title %}{{ _('Odosielatelia') }}{% endblock %}
+{% block heading %}{{ _('Odosielatelia') }}{% endblock %}
+{% block subtitle %}{{ _('Kto posiela poštu v mene vašich domén') }} · {{ f.start|dt }} – {{ f.end|dt }}{% endblock %}
 {% block filters %}{{ period(f, days, '/sources', {'category': category, 'q': q}) }}{% endblock %}
 
 {% block content %}
 {% set qs = 'days=' ~ days ~ ('&domain=' ~ f.domain if f.domain else '') ~ ('&q=' ~ q|urlencode if q else '') %}
 <div class="tabs">
-  <a href="/sources?{{ qs }}" class="{% if not category %}on{% endif %}">Všetko</a>
-  {% for k, label in CATEGORIES.items() %}<a href="/sources?{{ qs }}&category={{ k }}" class="{% if category == k %}on{% endif %}">{{ label }}</a>{% endfor %}
+  <a href="/sources?{{ qs }}" class="{% if not category %}on{% endif %}">{{ _('Všetko') }}</a>
+  {% for k, label in CATEGORIES.items() %}<a href="/sources?{{ qs }}&category={{ k }}" class="{% if category == k %}on{% endif %}">{{ _(label) }}</a>{% endfor %}
 </div>
 
 <div class="grid g-12">
   <div class="card">
-    <div class="card-head"><h2>Služby</h2></div>
-    <div id="ch-senders" class="chart tall" role="img" aria-label="Objem podľa služby"></div>
+    <div class="card-head"><h2>{{ _('Služby') }}</h2></div>
+    <div id="ch-senders" class="chart tall" role="img" aria-label="{{ _('Objem podľa služby') }}"></div>
   </div>
   <div class="card flush">
-    <div class="card-head"><h2>Najčastejšie kombinácie zlyhaní</h2><span class="hint">pomáha nájsť chýbajúci DKIM / SPF</span></div>
+    <div class="card-head"><h2>{{ _('Najčastejšie kombinácie zlyhaní') }}</h2><span class="hint">{{ _('pomáha nájsť chýbajúci DKIM / SPF') }}</span></div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Služba</th><th>DKIM (d=)</th><th>SPF (MAIL FROM)</th><th class="num">Správ</th></tr></thead>
-      <tbody>{% for x in failures %}<tr><td>{{ x.sender }}</td><td class="mono">{{ x.dkim }}</td><td class="mono">{{ x.spf }}</td><td class="num">{{ x.count|num }}</td></tr>
-      {% else %}<tr><td colspan="4" class="hint">Žiadne zlyhania.</td></tr>{% endfor %}</tbody>
+      <thead><tr><th>{{ _('Služba') }}</th><th>DKIM (d=)</th><th>SPF (MAIL FROM)</th><th class="num">{{ _('Správ') }}</th></tr></thead>
+      <tbody>{% for x in failures %}<tr><td>{{ x.sender|t }}</td><td class="mono">{{ x.dkim }}</td><td class="mono">{{ x.spf }}</td><td class="num">{{ x.count|num }}</td></tr>
+      {% else %}<tr><td colspan="4" class="hint">{{ _('Žiadne zlyhania.') }}</td></tr>{% endfor %}</tbody>
     </table></div>
   </div>
 </div>
 
 <div class="card flush mt">
   <div class="card-head">
-    <h2>Zdrojové IP adresy <span class="sub">({{ rows|length }})</span></h2>
+    <h2>{{ _('Zdrojové IP adresy') }} <span class="sub">({{ rows|length }})</span></h2>
     <form class="actions" method="get" action="/sources">
       <input type="hidden" name="days" value="{{ days }}">{% if f.domain %}<input type="hidden" name="domain" value="{{ f.domain }}">{% endif %}
       {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
-      <input type="search" name="q" value="{{ q }}" placeholder="IP, PTR, služba, doména…">
+      <input type="search" name="q" value="{{ q }}" placeholder="{{ _('IP, PTR, služba, doména…') }}">
       <a class="btn sm" href="/sources.csv?{{ qs }}{% if category %}&category={{ category }}{% endif %}">{{ icon('download') }}CSV</a>
     </form>
   </div>
   <div class="table-wrap"><table>
-    <thead><tr><th>IP adresa</th><th>Služba / PTR</th><th>Krajina / ASN</th><th>Header From</th><th>Kategória</th><th class="num">Správ</th><th>DMARC</th><th>SPF</th><th>DKIM</th><th>Naposledy</th></tr></thead>
+    <thead><tr><th>{{ _('IP adresa') }}</th><th>{{ _('Služba / PTR') }}</th><th>{{ _('Krajina / ASN') }}</th><th>Header From</th><th>{{ _('Kategória') }}</th><th class="num">{{ _('Správ') }}</th><th>DMARC</th><th>SPF</th><th>DKIM</th><th>{{ _('Naposledy') }}</th></tr></thead>
     <tbody>
     {% for r in rows %}
       <tr>
         <td class="mono">{{ r.ip }}</td>
-        <td><strong>{{ r.sender }}</strong><div class="sub ellipsis" title="{{ r.ptr or '' }}">{{ r.ptr or 'bez PTR' }}</div></td>
+        <td><strong>{{ r.sender|t }}</strong><div class="sub ellipsis" title="{{ r.ptr or '' }}">{{ r.ptr or _('bez PTR') }}</div></td>
         <td>{{ r.country or '–' }}<div class="sub ellipsis">{{ r.asn or '' }}</div></td>
         <td>{{ r.header_from }}</td>
         <td>{{ cat_badge(r.category) }}</td>
-        <td class="num">{{ r.total|num }}{% if r.enforced %}<div class="sub">{{ r.enforced|num }} vynútené</div>{% endif %}</td>
+        <td class="num">{{ r.total|num }}{% if r.enforced %}<div class="sub">{{ _('{n} vynútené', n=r.enforced|num) }}</div>{% endif %}</td>
         <td>{{ rate_bar(r.pass_pct) }}</td><td>{{ rate_bar(r.spf_pct) }}</td><td>{{ rate_bar(r.dkim_pct) }}</td>
         <td class="sub">{{ r.last_seen|dt }}</td>
       </tr>
-    {% else %}<tr><td colspan="10">{{ empty('Žiadne zdroje pre zvolený filter') }}</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="10">{{ empty(_('Žiadne zdroje pre zvolený filter')) }}</td></tr>{% endfor %}
     </tbody>
   </table></div>
 </div>

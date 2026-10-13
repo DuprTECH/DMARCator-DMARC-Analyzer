@@ -1,3 +1,4 @@
+import re
 import threading
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -204,6 +205,29 @@ def user_delete(uid: int, request: Request, me: User = Depends(admin_required), 
 
 
 # --------------------------------------------------------------- domains
+
+
+DOMAIN_RE = re.compile(r"^(?=.{4,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{1,62}$")
+
+
+@router.post("/domains/add", dependencies=[Depends(verify_csrf)])
+def domains_add(request: Request, domains: str = Form(...), db: Session = Depends(get_db)):
+    names = {n.strip().lower().rstrip(".") for n in re.split(r"[\s,;]+", domains) if n.strip()}
+    invalid = sorted(n for n in names if not DOMAIN_RE.match(n))
+    valid = names - set(invalid)
+    existing = set(db.scalars(select(Domain.name).where(Domain.name.in_(valid)))) if valid else set()
+    for name in sorted(valid - existing):
+        db.add(Domain(name=name))
+    db.commit()
+    added = len(valid - existing)
+    if added:
+        invalidate()
+        threading.Thread(target=refresh_dns, kwargs={"only_missing": True}, daemon=True).start()
+    msg = f"Pridané domény: {added}, už existovalo: {len(existing)}."
+    if invalid:
+        msg += f" Neplatné: {', '.join(invalid[:10])}."
+    flash(request, msg, "warn" if invalid else "ok")
+    return RedirectResponse("/domains", 303)
 
 
 @router.post("/dns-refresh", dependencies=[Depends(verify_csrf)])

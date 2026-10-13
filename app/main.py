@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, Request
@@ -12,6 +13,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import get_settings
 from .db import init_db, session_scope
+from .i18n import LANGUAGES, set_language
 from .ingest.service import refresh_dns, run_all_sources
 from .models import User
 from .routes import admin, auth, pages
@@ -32,7 +34,7 @@ def bootstrap_admin():
             log.warning("No users exist and ADMIN_PASSWORD is empty – set it to create the first admin account.")
             return
         db.add(User(username=settings.admin_username.lower(), password_hash=hash_password(settings.admin_password),
-                    role="admin", auth_source="local", display_name="Administrátor"))
+                    role="admin", auth_source="local", display_name="Administrator"))
         log.info("Bootstrap admin '%s' created", settings.admin_username)
 
 
@@ -74,6 +76,7 @@ app.include_router(pages.router)
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
+    set_language(request.cookies.get("lang") or settings.default_language)
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
@@ -95,6 +98,20 @@ async def http_error(request: Request, exc: StarletteHTTPException):
     if request.url.path.startswith("/api/"):
         return JSONResponse({"detail": exc.detail}, exc.status_code)
     return render(request, "error.html", {"code": exc.status_code, "detail": exc.detail}, exc.status_code)
+
+
+@app.get("/lang/{code}", include_in_schema=False)
+def switch_language(code: str, request: Request):
+    target = request.headers.get("referer") or "/"
+    # only redirect back within this site
+    parts = urlsplit(target)
+    path = (parts.path or "/") + (f"?{parts.query}" if parts.query else "")
+    if parts.netloc and parts.netloc != request.url.netloc:
+        path = "/"
+    response = RedirectResponse(path if path.startswith("/") and not path.startswith("//") else "/", 303)
+    if code in LANGUAGES:
+        response.set_cookie("lang", code, max_age=365 * 86400, samesite="lax", secure=settings.cookie_secure, httponly=True)
+    return response
 
 
 @app.get("/healthz", include_in_schema=False)

@@ -1,22 +1,22 @@
 {% extends "base.html" %}
 {% from "macros.html" import period, rate_bar, empty with context %}
 {% block title %}TLS-RPT{% endblock %}
-{% block heading %}SMTP TLS reporty (TLS-RPT){% endblock %}
-{% block subtitle %}Šifrovanie doručovania pošty do vašich MX · RFC 8460{% endblock %}
+{% block heading %}{{ _('SMTP TLS reporty') }} (TLS-RPT){% endblock %}
+{% block subtitle %}{{ _('Šifrovanie doručovania pošty do vašich MX') }} · RFC 8460{% endblock %}
 {% block filters %}{{ period(f, days, '/tls') }}{% endblock %}
 {% block content %}
 <div class="grid g-kpi">
-  <div class="card kpi"><div class="label">Úspešné TLS relácie</div><div class="value">{{ tls.success|num }}</div></div>
-  <div class="card kpi"><div class="label">Zlyhané relácie</div><div class="value" style="color:var(--critical-text)">{{ tls.failure|num }}</div></div>
-  <div class="card kpi"><div class="label">Úspešnosť</div><div class="value">{{ tls.success_pct|pct }}</div><div class="meter"><span style="width:{{ tls.success_pct or 0 }}%;background:var(--good)"></span></div></div>
-  <div class="card kpi"><div class="label">Reportov</div><div class="value">{{ tls.reports|length }}</div></div>
+  <div class="card kpi"><div class="label">{{ _('Úspešné TLS relácie') }}</div><div class="value">{{ tls.success|num }}</div></div>
+  <div class="card kpi"><div class="label">{{ _('Zlyhané relácie') }}</div><div class="value" style="color:var(--critical-text)">{{ tls.failure|num }}</div></div>
+  <div class="card kpi"><div class="label">{{ _('Úspešnosť') }}</div><div class="value">{{ tls.success_pct|pct }}</div><div class="meter"><span style="width:{{ tls.success_pct or 0 }}%;background:var(--good)"></span></div></div>
+  <div class="card kpi"><div class="label">{{ _('Reportov') }}</div><div class="value">{{ tls.reports|length }}</div></div>
 </div>
 {% if tls.failure_types %}
-<div class="card mt"><div class="card-head"><h2>Typy zlyhaní</h2></div><div id="ch-fail" class="chart short" role="img" aria-label="Typy TLS zlyhaní"></div></div>
+<div class="card mt"><div class="card-head"><h2>{{ _('Typy zlyhaní') }}</h2></div><div id="ch-fail" class="chart short" role="img" aria-label="{{ _('Typy zlyhaní') }}"></div></div>
 {% endif %}
 <div class="card flush mt">
   <div class="table-wrap"><table>
-    <thead><tr><th>Obdobie</th><th>Reportér</th><th>Doména</th><th>Politika</th><th>MX</th><th class="num">Úspešné</th><th class="num">Zlyhané</th><th>Úspešnosť</th></tr></thead>
+    <thead><tr><th>{{ _('Obdobie') }}</th><th>{{ _('Reportér') }}</th><th>{{ _('Doména') }}</th><th>{{ _('Politika') }}</th><th>MX</th><th class="num">{{ _('Úspešné') }}</th><th class="num">{{ _('Zlyhané') }}</th><th>{{ _('Úspešnosť') }}</th></tr></thead>
     <tbody>
     {% for r in tls.reports %}
       {% set tot = r.success_count + r.failure_count %}
@@ -27,8 +27,8 @@
         <td class="num">{{ r.success_count|num }}</td><td class="num">{{ r.failure_count|num }}</td>
         <td>{{ rate_bar((100.0 * r.success_count / tot) if tot else none) }}</td>
       </tr>
-      {% if r.failure_details %}<tr><td colspan="8"><details><summary>Detail zlyhaní ({{ r.failure_details|length }})</summary><pre>{{ r.failure_details|jsonify }}</pre></details></td></tr>{% endif %}
-    {% else %}<tr><td colspan="8">{{ empty('Žiadne TLS-RPT reporty. Publikujte _smtp._tls TXT záznam „v=TLSRPTv1; rua=mailto:…“.') }}</td></tr>{% endfor %}
+      {% if r.failure_details %}<tr><td colspan="8"><details><summary>{{ _('Detail zlyhaní') }} ({{ r.failure_details|length }})</summary><pre>{{ r.failure_details|jsonify }}</pre></details></td></tr>{% endif %}
+    {% else %}<tr><td colspan="8">{{ empty(_('Žiadne TLS-RPT reporty. Publikujte _smtp._tls TXT záznam „v=TLSRPTv1; rua=mailto:…“.')) }}</td></tr>{% endfor %}
     </tbody>
   </table></div>
 </div>

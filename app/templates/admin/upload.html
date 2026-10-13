@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 {% from "macros.html" import icon %}
-{% block title %}Import reportov{% endblock %}
-{% block heading %}Import reportov{% endblock %}
-{% block subtitle %}Ručné nahratie DMARC / TLS-RPT reportov{% endblock %}
+{% block title %}{{ _('Import reportov') }}{% endblock %}
+{% block heading %}{{ _('Import reportov') }}{% endblock %}
+{% block subtitle %}{{ _('Ručné nahratie DMARC / TLS-RPT reportov') }}{% endblock %}
 {% block content %}
 {% if result %}
-<div class="alert {{ 'ok' if not result.errors else 'warn' }}">Nových reportov: {{ result.new }} · duplicít: {{ result.duplicate }} · chýb: {{ result.errors|length }}</div>
-{% if result.errors %}<div class="card"><h2>Chyby</h2><ul>{% for e in result.errors %}<li class="mono">{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+<div class="alert {{ 'ok' if not result.errors else 'warn' }}">{{ _('Nových reportov: {n} · duplicít: {d} · chýb: {e}', n=result.new, d=result.duplicate, e=result.errors|length) }}</div>
+{% if result.errors %}<div class="card"><h2>{{ _('Chyby') }}</h2><ul>{% for e in result.errors %}<li class="mono">{{ e|t }}</li>{% endfor %}</ul></div>{% endif %}
 {% endif %}
 <form class="card mt" method="post" action="/admin/upload" enctype="multipart/form-data" style="max-width:720px">
   <input type="hidden" name="csrf_token" value="{{ csrf }}">
-  <div class="field"><label>Súbory</label><input type="file" name="files" multiple required accept=".xml,.gz,.zip,.json,.eml"></div>
-  <p class="hint">Podporované: agregované reporty (.xml, .xml.gz, .zip), TLS-RPT (.json, .json.gz), e-maily s reportmi alebo forenzné reporty (.eml). Duplicitné reporty sa preskočia.</p>
-  <button class="btn primary" type="submit">{{ icon('upload') }}Nahrať</button>
+  <div class="field"><label>{{ _('Súbory') }}</label><input type="file" name="files" multiple required accept=".xml,.gz,.zip,.json,.eml"></div>
+  <p class="hint">{{ _('Podporované: agregované reporty (.xml, .xml.gz, .zip), TLS-RPT (.json, .json.gz), e-maily s reportmi alebo forenzné reporty (.eml). Duplicitné reporty sa preskočia.') }}</p>
+  <button class="btn primary" type="submit">{{ icon('upload') }}{{ _('Nahrať') }}</button>
 </form>
 {% endblock %}

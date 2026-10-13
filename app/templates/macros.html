@@ -30,32 +30,32 @@
 <form class="filters" method="get" action="{{ path }}">
   {% for k, v in extra.items() %}{% if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
   {% if domain_names is defined %}
-  <select name="domain" data-autosubmit aria-label="Doména">
-    <option value="">Všetky domény</option>
+  <select name="domain" data-autosubmit aria-label="{{ _('Doména') }}">
+    <option value="">{{ _('Všetky domény') }}</option>
     {% for d in domain_names %}<option value="{{ d }}" {% if f.domain == d %}selected{% endif %}>{{ d }}</option>{% endfor %}
   </select>
   {% endif %}
   <input type="hidden" name="days" value="{{ days }}">
-  <div class="seg" role="group" aria-label="Obdobie">
-    {% for d, label in [(7, '7 dní'), (30, '30 dní'), (90, '90 dní'), (365, '1 rok')] %}
+  <div class="seg" role="group" aria-label="{{ _('Obdobie') }}">
+    {% for d, label in [(7, _('7 dní')), (30, _('30 dní')), (90, _('90 dní')), (365, _('1 rok'))] %}
     <a href="{{ path }}?days={{ d }}{% if f.domain %}&domain={{ f.domain }}{% endif %}{% for k, v in extra.items() %}{% if v %}&{{ k }}={{ v|urlencode }}{% endif %}{% endfor %}" class="{% if days == d %}on{% endif %}">{{ label }}</a>
     {% endfor %}
   </div>
 </form>
 {%- endmacro %}
 
-{% macro cat_badge(key) -%}<span class="badge {{ key }}">{{ CATEGORIES.get(key, key) }}</span>{%- endmacro %}
+{% macro cat_badge(key) -%}<span class="badge {{ key }}">{{ _(CATEGORIES.get(key, key)) }}</span>{%- endmacro %}
 
 {% macro policy_badge(p) -%}
 {% if p == 'reject' %}<span class="badge reject">p=reject</span>
 {% elif p == 'quarantine' %}<span class="badge quarantine">p=quarantine</span>
 {% elif p == 'none' %}<span class="badge none-policy">p=none</span>
-{% else %}<span class="badge error">bez DMARC</span>{% endif %}
+{% else %}<span class="badge error">{{ _('bez DMARC') }}</span>{% endif %}
 {%- endmacro %}
 
 {% macro status_badge(s) -%}
 {% set labels = {'ok': 'OK', 'warn': 'Upozornenie', 'error': 'Chyba', 'missing': 'Nenastavené', 'info': 'Info', 'unknown': 'Nezistené'} %}
-<span class="badge {{ s }}">{{ labels.get(s, s) }}</span>
+<span class="badge {{ s }}">{{ _(labels.get(s, s)) }}</span>
 {%- endmacro %}
 
 {% macro bar(value, color='--accent') -%}
@@ -73,7 +73,7 @@
 <ul class="issues">
 {% for i in list %}
   <li class="{{ i.level }}"><span class="ico">{% if i.level == 'error' %}!{% elif i.level == 'warn' %}!{% elif i.level == 'ok' %}✓{% else %}i{% endif %}</span>
-  <span>{% if show_domain %}<a class="dom" href="/domains/{{ i.domain }}">{{ i.domain }}</a> – {% endif %}{{ i.msg }}</span></li>
+  <span>{% if show_domain %}<a class="dom" href="/domains/{{ i.domain }}">{{ i.domain }}</a> – {% endif %}{% if i.check %}{{ i.check }}: {% endif %}{{ i.msg|t }}</span></li>
 {% endfor %}
 </ul>
 {%- endmacro %}
@@ -81,13 +81,19 @@
 {% macro pager(page, pages, base) -%}
 {% if pages > 1 %}
 <div class="pager">
-  {% if page > 1 %}<a class="btn sm" href="{{ base }}&page={{ page - 1 }}">← Predošlá</a>{% endif %}
-  <span class="sub">Strana {{ page }} / {{ pages }}</span>
-  {% if page < pages %}<a class="btn sm" href="{{ base }}&page={{ page + 1 }}">Ďalšia →</a>{% endif %}
+  {% if page > 1 %}<a class="btn sm" href="{{ base }}&page={{ page - 1 }}">← {{ _('Predošlá') }}</a>{% endif %}
+  <span class="sub">{{ _('Strana {page} / {pages}', page=page, pages=pages) }}</span>
+  {% if page < pages %}<a class="btn sm" href="{{ base }}&page={{ page + 1 }}">{{ _('Ďalšia') }} →</a>{% endif %}
 </div>
 {% endif %}
 {%- endmacro %}
 
 {% macro empty(msg) -%}
 <div class="empty">{{ icon('inbox') }}{{ msg }}</div>
+{%- endmacro %}
+
+{% macro lang_switch(current) -%}
+<div class="seg lang-switch" role="group" aria-label="{{ _('Jazyk') }}">
+  {% for code in LANGUAGES %}<a href="/lang/{{ code }}" class="{% if current == code %}on{% endif %}" hreflang="{{ code }}" title="{{ LANGUAGES[code] }}">{{ code|upper }}</a>{% endfor %}
+</div>
 {%- endmacro %}

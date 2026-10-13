@@ -154,12 +154,12 @@ def _fake_dns(domain, policy):
     lookups = {"contoso.sk": 6, "fabrikam.sk": 11, "tailspin.eu": 4}.get(domain, 3 + len(domain) % 9)
     score = {"reject": 92, "quarantine": 71, "none": 44}[policy]
     rec = f"v=DMARC1; p={policy}; rua=mailto:dmarc@{domain}; fo=1"
-    spf_issues = [{"level": "error", "msg": f"{lookups} DNS lookupov – limit je 10 (permerror)."}] if lookups > 10 else []
+    spf_issues = [{"level": "error", "msg": f"{lookups} DNS lookupov – limit je 10 (permerror). Zvážte SPF flattening."}] if lookups > 10 else []
     return {
         "domain": domain, "score": score, "grade": grade(score),
         "dmarc": {"record": rec, "tags": {"v": "DMARC1", "p": policy, "rua": f"mailto:dmarc@{domain}", "fo": "1"}, "external_destinations": [],
                   "status": "ok" if policy == "reject" else "warn",
-                  "issues": [] if policy == "reject" else [{"level": "warn", "msg": f"Politika p={policy} – zvážte sprísnenie."}]},
+                  "issues": [] if policy == "reject" else [{"level": "warn", "msg": "Politika p=none iba monitoruje – podvrhnuté e-maily sa doručia." if policy == "none" else "Politika quarantine – zvážte prechod na p=reject."}]},
         "spf": {"record": "v=spf1 include:spf.protection.outlook.com include:sendgrid.net -all", "lookups": lookups,
                 "includes": ["spf.protection.outlook.com", "sendgrid.net"], "all": "-all",
                 "status": "error" if spf_issues else "ok", "issues": spf_issues},
@@ -168,10 +168,10 @@ def _fake_dns(domain, policy):
         "mx": {"hosts": [{"pref": 0, "host": f"{domain.replace('.', '-')}.mail.protection.outlook.com"}], "provider": "Microsoft 365", "status": "ok", "issues": []},
         "mta_sts": {"record": "v=STSv1; id=20260101", "policy": {"mode": "enforce", "max_age": "604800", "mx": ["*.mail.protection.outlook.com"]},
                     "status": "ok", "issues": []} if domain == "contoso.sk" else
-                   {"record": None, "policy": None, "status": "missing", "issues": [{"level": "info", "msg": "MTA-STS nie je nasadené."}]},
+                   {"record": None, "policy": None, "status": "missing", "issues": [{"level": "info", "msg": "MTA-STS nie je nasadené – prenos pošty k vám nie je chránený proti downgrade útokom."}]},
         "tls_rpt": {"record": "v=TLSRPTv1; rua=mailto:tlsrpt@contoso.sk", "status": "ok", "issues": []} if domain == "contoso.sk" else
-                   {"record": None, "status": "missing", "issues": [{"level": "info", "msg": "TLS-RPT nie je nastavené."}]},
-        "bimi": {"record": None, "status": "missing", "issues": [{"level": "info", "msg": "BIMI nie je nastavené."}]},
+                   {"record": None, "status": "missing", "issues": [{"level": "info", "msg": "TLS-RPT nie je nastavené – nedostanete reporty o zlyhaniach TLS."}]},
+        "bimi": {"record": None, "status": "missing", "issues": [{"level": "info", "msg": "BIMI nie je nastavené (logo značky v schránke príjemcu)."}]},
     }
 
 

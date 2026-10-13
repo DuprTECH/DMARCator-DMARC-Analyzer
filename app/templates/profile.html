@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block title %}Profil{% endblock %}
-{% block heading %}Môj profil{% endblock %}
+{% block title %}{{ _('Profil') }}{% endblock %}
+{% block heading %}{{ _('Môj profil') }}{% endblock %}
 {% block content %}
 <div class="card" style="max-width:560px">
   <dl class="kv">
-    <dt>Používateľ</dt><dd>{{ u.username }}</dd>
-    <dt>Meno</dt><dd>{{ u.display_name or '–' }}</dd>
+    <dt>{{ _('Používateľ') }}</dt><dd>{{ u.username }}</dd>
+    <dt>{{ _('Meno') }}</dt><dd>{{ u.display_name or '–' }}</dd>
     <dt>E-mail</dt><dd>{{ u.email or '–' }}</dd>
-    <dt>Rola</dt><dd>{{ u.role }}</dd>
-    <dt>Prihlásenie cez</dt><dd>{{ {'local': 'Lokálny účet', 'ldap': 'LDAP / Active Directory', 'oidc': 'SSO (OpenID Connect)'}[u.auth_source] }}</dd>
-    <dt>Posledné prihlásenie</dt><dd>{{ u.last_login|dt }}</dd>
+    <dt>{{ _('Rola') }}</dt><dd>{{ u.role }}</dd>
+    <dt>{{ _('Prihlásenie cez') }}</dt><dd>{{ _({'local': 'Lokálny účet', 'ldap': 'LDAP / Active Directory', 'oidc': 'SSO (OpenID Connect)'}[u.auth_source]) }}</dd>
+    <dt>{{ _('Posledné prihlásenie') }}</dt><dd>{{ u.last_login|dt }}</dd>
   </dl>
 </div>
 {% endblock %}

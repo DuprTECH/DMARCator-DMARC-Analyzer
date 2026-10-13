@@ -10,20 +10,28 @@ from markupsafe import Markup
 
 from .analysis.senders import CATEGORIES
 from .config import get_settings
+from .i18n import LANGUAGES, get_language, js_strings, translate
 from .security import csrf_token
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
+AUTHOR = "DuprTECH"
+AUTHOR_URL = "https://github.com/DuprTECH/DMARCula---DMARC-Anylzer"
+
 
 def _num(value) -> str:
     try:
-        return f"{int(value):,}".replace(",", " ")
+        text = f"{int(value):,}"
     except (TypeError, ValueError):
         return "–"
+    return text if get_language() == "en" else text.replace(",", " ")
 
 
 def _pct(value) -> str:
-    return "–" if value is None else f"{value:.1f} %".replace(".", ",")
+    if value is None:
+        return "–"
+    text = f"{value:.1f} %"
+    return text if get_language() == "en" else text.replace(".", ",")
 
 
 def _dt(value) -> str:
@@ -31,10 +39,11 @@ def _dt(value) -> str:
         return "–"
     if isinstance(value, str):
         value = datetime.fromisoformat(value)
+    en = get_language() == "en"
     if isinstance(value, datetime):
-        return value.strftime("%d.%m.%Y %H:%M")
+        return value.strftime("%Y-%m-%d %H:%M" if en else "%d.%m.%Y %H:%M")
     if isinstance(value, date):
-        return value.strftime("%d.%m.%Y")
+        return value.strftime("%Y-%m-%d" if en else "%d.%m.%Y")
     return str(value)
 
 
@@ -44,17 +53,22 @@ def _json_default(o):
     raise TypeError(type(o))
 
 
-templates.env.filters["num"] = _num
-templates.env.filters["pct"] = _pct
-templates.env.filters["dt"] = _dt
 def _jsonify(value) -> Markup:
     """JSON safe to embed in <script> blocks (escapes <, > and & so it cannot close the tag)."""
     text = json.dumps(value, default=_json_default, ensure_ascii=False)
     return Markup(text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026"))
 
 
+templates.env.filters["num"] = _num
+templates.env.filters["pct"] = _pct
+templates.env.filters["dt"] = _dt
 templates.env.filters["jsonify"] = _jsonify
+templates.env.filters["t"] = translate
+templates.env.globals["_"] = translate
 templates.env.globals["CATEGORIES"] = CATEGORIES
+templates.env.globals["LANGUAGES"] = LANGUAGES
+templates.env.globals["AUTHOR"] = AUTHOR
+templates.env.globals["AUTHOR_URL"] = AUTHOR_URL
 
 
 def render(request: Request, name: str, ctx: dict | None = None, status_code: int = 200):
@@ -66,6 +80,9 @@ def render(request: Request, name: str, ctx: dict | None = None, status_code: in
         "csrf": csrf_token(request),
         "flash": request.session.pop("flash", None),
         "path": request.url.path,
+        "lang": get_language(),
+        "js_i18n": js_strings(),
+        "year": datetime.now().year,
     }
     base.update(ctx or {})
     return templates.TemplateResponse(request, name, base, status_code=status_code)

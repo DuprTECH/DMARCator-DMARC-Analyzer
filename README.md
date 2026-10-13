@@ -6,7 +6,7 @@ sent each message (Microsoft 365, SendGrid, Mailchimp, …) and checks the DNS p
 domain. The results are shown on a dashboard built for managing **many domains** at once.
 It's inspired by dmarcian, Valimail, EasyDMARC and parsedmarc.
 
-The user interface is in Slovak. The documentation is in English.
+**Author:** [DuprTECH](https://github.com/DuprTECH) · The user interface is available in **Slovak and English** (switch in the top bar). The documentation is in English.
 
 📖 **Full documentation: [docs/](docs/README.md)**: [Installation](docs/installation.md) · [Operations](docs/operations.md) ·
 [Configuration](docs/configuration.md) · [Authentication](docs/authentication.md) ·
@@ -23,7 +23,8 @@ The user interface is in Slovak. The documentation is in English.
 | **Classification** | compliant / forwarded / non-compliant legitimate source / threat, dmarcian-style. Recognizes 60+ sending services and M365 tenants without custom DKIM. |
 | **Dashboard** | KPIs compared with the previous period, daily volume, compliance trend, SPF/DKIM alignment, applied policy, reporters, countries (map), services, domains with sparklines, new failing sources, recommendations |
 | **Domains** | A–F DNS score: DMARC (incl. external `rua` authorization), SPF (recursive lookup count, void lookups, `+all`/`ptr`), DKIM (selectors from reports + common ones, key length), MX, MTA-STS (fetches and validates the policy), TLS-RPT, BIMI. Plus **readiness for `p=quarantine` / `p=reject`**. Search and filters for 100+ domains. |
-| **Tools** | DNS check of any domain, DMARC record generator, CSV export, dark mode, responsive layout |
+| **Domains, manual** | add domains by hand (bulk, one per line). They are checked immediately and then daily, even before the first report arrives |
+| **Tools** | DNS check of any domain, DMARC record generator, CSV export, dark mode, responsive layout, **Slovak / English UI** |
 | **Databases** | MariaDB / MySQL, PostgreSQL or SQLite. Schema and indexes are created and upgraded automatically. |
 
 ## Installation

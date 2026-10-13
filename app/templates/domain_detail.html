@@ -3,10 +3,10 @@
 {% set s = data.summary %}
 {% block title %}{{ dom.name }}{% endblock %}
 {% block heading %}{{ dom.name }}{% endblock %}
-{% block subtitle %}DNS kontrola: {{ dom.dns_checked_at|dt }} · prvý report {{ dom.first_seen|dt }}{% endblock %}
+{% block subtitle %}{{ _('DNS kontrola') }}: {{ dom.dns_checked_at|dt }} · {{ _('pridaná') }} {{ dom.first_seen|dt }}{% endblock %}
 {% block filters %}
 <form method="post" action="/domains/{{ dom.name }}/check"><input type="hidden" name="csrf_token" value="{{ csrf }}">
-  <button class="btn" type="submit">{{ icon('refresh') }}Znova skontrolovať DNS</button></form>
+  <button class="btn" type="submit">{{ icon('refresh') }}{{ _('Znova skontrolovať DNS') }}</button></form>
 {{ period(f, days, '/domains/' ~ dom.name) }}
 {% endblock %}
 
@@ -15,70 +15,70 @@
   <div class="card" style="display:flex;gap:18px;align-items:center">
     <span class="grade big {{ dns.grade or '?' }}">{{ dns.grade or '?' }}</span>
     <div>
-      <div class="hint">Bezpečnostné skóre DNS</div>
+      <div class="hint">{{ _('Bezpečnostné skóre DNS') }}</div>
       <div style="font-size:26px;font-weight:650">{{ dns.score if dns.score is not none else '–' }}<small class="sub">/100</small></div>
       <div>{{ policy_badge(readiness.policy) }}{% if policy and policy.pct and policy.pct != 100 %} <span class="badge warn">pct={{ policy.pct }}</span>{% endif %}</div>
     </div>
   </div>
   <div class="card">
-    <div class="card-head"><h2>Pripravenosť na vynútenie politiky</h2>
-      <span class="hint">súlad legitímnych zdrojov: <strong>{{ readiness.compliance|pct }}</strong> · dní s dátami: {{ readiness.days_with_data }}</span></div>
+    <div class="card-head"><h2>{{ _('Pripravenosť na vynútenie politiky') }}</h2>
+      <span class="hint">{{ _('súlad legitímnych zdrojov') }}: <strong>{{ readiness.compliance|pct }}</strong> · {{ _('dní s dátami') }}: {{ readiness.days_with_data }}</span></div>
     {{ issues(readiness.recommendations) }}
   </div>
 </div>
 
 <div class="grid g-kpi mt">
-  <div class="card kpi"><div class="label">Správ</div><div class="value">{{ s.total|num }}</div><div class="foot">{{ s.reports|num }} reportov od {{ s.reporters }} reportérov</div></div>
-  <div class="card kpi"><div class="label">DMARC súlad</div><div class="value">{{ s.pass_pct|pct }}</div><div class="meter"><span style="width:{{ s.pass_pct or 0 }}%;background:var(--good)"></span></div></div>
-  <div class="card kpi"><div class="label">SPF zarovnané</div><div class="value">{{ s.spf_pct|pct }}</div><div class="meter"><span style="width:{{ s.spf_pct or 0 }}%"></span></div></div>
-  <div class="card kpi"><div class="label">DKIM zarovnané</div><div class="value">{{ s.dkim_pct|pct }}</div><div class="meter"><span style="width:{{ s.dkim_pct or 0 }}%"></span></div></div>
-  <div class="card kpi"><div class="label">Hrozby</div><div class="value" style="color:var(--critical-text)">{{ s.threat|num }}</div><div class="foot">reject {{ s.reject|num }} · karanténa {{ s.quarantine|num }}</div></div>
+  <div class="card kpi"><div class="label">{{ _('Správ') }}</div><div class="value">{{ s.total|num }}</div><div class="foot">{{ _('{n} reportov od {r} reportérov', n=s.reports|num, r=s.reporters) }}</div></div>
+  <div class="card kpi"><div class="label">{{ _('DMARC súlad') }}</div><div class="value">{{ s.pass_pct|pct }}</div><div class="meter"><span style="width:{{ s.pass_pct or 0 }}%;background:var(--good)"></span></div></div>
+  <div class="card kpi"><div class="label">{{ _('SPF zarovnané') }}</div><div class="value">{{ s.spf_pct|pct }}</div><div class="meter"><span style="width:{{ s.spf_pct or 0 }}%"></span></div></div>
+  <div class="card kpi"><div class="label">{{ _('DKIM zarovnané') }}</div><div class="value">{{ s.dkim_pct|pct }}</div><div class="meter"><span style="width:{{ s.dkim_pct or 0 }}%"></span></div></div>
+  <div class="card kpi"><div class="label">{{ _('Hrozby') }}</div><div class="value" style="color:var(--critical-text)">{{ s.threat|num }}</div><div class="foot">{{ _('karanténa {q} · reject {r}', q=s.quarantine|num, r=s.reject|num) }}</div></div>
 </div>
 
 <div class="grid g-21 mt">
-  <div class="card"><div class="card-head"><h2>Objem pošty</h2></div><div id="ch-volume" class="chart" role="img" aria-label="Objem pošty"></div></div>
-  <div class="card"><div class="card-head"><h2>Klasifikácia</h2></div><div id="ch-cats" class="chart" role="img" aria-label="Klasifikácia"></div></div>
+  <div class="card"><div class="card-head"><h2>{{ _('Objem pošty') }}</h2></div><div id="ch-volume" class="chart" role="img" aria-label="{{ _('Objem pošty') }}"></div></div>
+  <div class="card"><div class="card-head"><h2>{{ _('Klasifikácia') }}</h2></div><div id="ch-cats" class="chart" role="img" aria-label="{{ _('Klasifikácia') }}"></div></div>
 </div>
 
 <div class="grid g-21 mt">
-  <div class="card"><div class="card-head"><h2>Súlad v čase</h2></div><div id="ch-compliance" class="chart short" role="img" aria-label="Súlad v čase"></div></div>
-  <div class="card"><div class="card-head"><h2>Zarovnanie</h2></div><div id="ch-align" class="chart short" role="img" aria-label="Zarovnanie"></div></div>
+  <div class="card"><div class="card-head"><h2>{{ _('Súlad v čase') }}</h2></div><div id="ch-compliance" class="chart short" role="img" aria-label="{{ _('Súlad v čase') }}"></div></div>
+  <div class="card"><div class="card-head"><h2>{{ _('Zarovnanie') }}</h2></div><div id="ch-align" class="chart short" role="img" aria-label="{{ _('Zarovnanie') }}"></div></div>
 </div>
 
-<h3 class="mt2">DNS konfigurácia</h3>
-{% if dns.dmarc %}{% include "_dns_checks.html" %}{% else %}<div class="card">{{ empty('DNS kontrola ešte neprebehla.') }}</div>{% endif %}
+<h3 class="mt2">{{ _('DNS konfigurácia') }}</h3>
+{% if dns.dmarc %}{% include "_dns_checks.html" %}{% else %}<div class="card">{{ empty(_('DNS kontrola ešte neprebehla.')) }}</div>{% endif %}
 
 <div class="card flush mt2">
-  <div class="card-head"><h2>Odosielatelia za doménu {{ dom.name }}</h2><a class="hint" href="/sources?domain={{ dom.name }}&days={{ days }}">IP detail →</a></div>
+  <div class="card-head"><h2>{{ _('Odosielatelia za doménu {d}', d=dom.name) }}</h2><a class="hint" href="/sources?domain={{ dom.name }}&days={{ days }}">{{ _('IP detail') }} →</a></div>
   <div class="table-wrap"><table>
-    <thead><tr><th>Služba</th><th>Kategória</th><th class="num">Správ</th><th class="num">IP</th><th>DMARC</th><th>SPF</th><th>DKIM</th></tr></thead>
+    <thead><tr><th>{{ _('Služba') }}</th><th>{{ _('Kategória') }}</th><th class="num">{{ _('Správ') }}</th><th class="num">IP</th><th>DMARC</th><th>SPF</th><th>DKIM</th></tr></thead>
     <tbody>
     {% for r in senders %}
-      <tr><td><strong>{{ r.name }}</strong></td><td>{{ cat_badge(r.category) }}</td><td class="num">{{ r.total|num }}</td><td class="num">{{ r.ips }}</td>
+      <tr><td><strong>{{ r.name|t }}</strong></td><td>{{ cat_badge(r.category) }}</td><td class="num">{{ r.total|num }}</td><td class="num">{{ r.ips }}</td>
         <td>{{ rate_bar(r.pass_pct) }}</td><td>{{ rate_bar(r.spf_pct) }}</td><td>{{ rate_bar(r.dkim_pct) }}</td></tr>
-    {% else %}<tr><td colspan="7">{{ empty('Žiadne dáta v zvolenom období') }}</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="7">{{ empty(_('Žiadne dáta v zvolenom období')) }}</td></tr>{% endfor %}
     </tbody>
   </table></div>
 </div>
 
 <div class="grid g-2 mt">
   <div class="card flush">
-    <div class="card-head"><h2>Najčastejšie zlyhania</h2><span class="hint">DKIM d= / SPF doména</span></div>
+    <div class="card-head"><h2>{{ _('Najčastejšie zlyhania') }}</h2><span class="hint">{{ _('DKIM d= / SPF doména') }}</span></div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Služba</th><th>DKIM</th><th>SPF</th><th class="num">Správ</th></tr></thead>
-      <tbody>{% for x in failures %}<tr><td>{{ x.sender }}</td><td class="mono">{{ x.dkim }}</td><td class="mono">{{ x.spf }}</td><td class="num">{{ x.count|num }}</td></tr>
-      {% else %}<tr><td colspan="4" class="hint">Žiadne zlyhania 🎉</td></tr>{% endfor %}</tbody>
+      <thead><tr><th>{{ _('Služba') }}</th><th>DKIM</th><th>SPF</th><th class="num">{{ _('Správ') }}</th></tr></thead>
+      <tbody>{% for x in failures %}<tr><td>{{ x.sender|t }}</td><td class="mono">{{ x.dkim }}</td><td class="mono">{{ x.spf }}</td><td class="num">{{ x.count|num }}</td></tr>
+      {% else %}<tr><td colspan="4" class="hint">{{ _('Žiadne zlyhania') }} 🎉</td></tr>{% endfor %}</tbody>
     </table></div>
   </div>
   <div class="card">
-    <div class="card-head"><h2>Reportéri</h2></div>
-    <div id="ch-rep" class="chart" role="img" aria-label="Reportéri"></div>
+    <div class="card-head"><h2>{{ _('Reportéri') }}</h2></div>
+    <div id="ch-rep" class="chart" role="img" aria-label="{{ _('Reportéri') }}"></div>
   </div>
 </div>
 
 {% if user.role == 'admin' %}
-<form class="mt2" method="post" action="/admin/domains/{{ dom.id }}/delete" data-confirm="Naozaj odstrániť doménu {{ dom.name }} a VŠETKY jej reporty?">
-  <input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="btn danger sm" type="submit">Odstrániť doménu a jej dáta</button>
+<form class="mt2" method="post" action="/admin/domains/{{ dom.id }}/delete" data-confirm="{{ _('Naozaj odstrániť doménu {d} a VŠETKY jej reporty?', d=dom.name) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="btn danger sm" type="submit">{{ _('Odstrániť doménu a jej dáta') }}</button>
 </form>
 {% endif %}
 {% endblock %}

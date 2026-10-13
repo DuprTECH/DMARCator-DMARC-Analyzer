@@ -29,6 +29,7 @@
 | Store | `app/ingest/service.py` | dedup, enrichment, classification, ingest log, running sources and DNS checks |
 | Analysis | `app/analysis/*` | `senders` (services, categories), `enrich` (PTR/GeoIP with cache), `dns_checks`, `stats` (aggregations, readiness), `cache` |
 | Web | `app/routes/pages.py`, `admin.py`, `app/web.py`, `templates/`, `static/` | pages, admin, Jinja filters, CSS tokens, ECharts helpers |
+| i18n | `app/i18n.py`, `app/i18n_en.py` | UI language (cookie `lang`, `/lang/<code>`), Slovak source strings mapped to English. Keys with `{placeholders}` also translate stored messages such as DNS findings by pattern matching. `tests/test_i18n.py` fails if a string lacks a translation or an English page still contains Slovak text. |
 
 ## Report processing flow
 

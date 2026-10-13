@@ -38,7 +38,7 @@ echo "Database password: $DB_PASS"           # write it down
 
 ```bash
 zypper refresh
-zypper install -y python311 python311-pip git curl openssl cron mariadb mariadb-client apache2
+zypper install -y python311 python311-pip git openssh-clients curl openssl cron mariadb mariadb-client apache2
 zypper install -y certbot python3-certbot-apache        # optional, for Let's Encrypt
 python3.11 --version
 ```
@@ -70,9 +70,29 @@ mariadb -u dmarcula -p"$DB_PASS" -h 127.0.0.1 -e "SHOW DATABASES;"
 
 ```bash
 id "$APP_USER" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$APP_USER"
+```
 
+**The GitHub repository is private**, so the server needs read access first. Create a
+*deploy key* for the app user (a read-only SSH key for this one repository):
+
+```bash
+install -d -o "$APP_USER" -g "$APP_USER" -m 700 /home/$APP_USER/.ssh
+runuser -u "$APP_USER" -- ssh-keygen -t ed25519 -N "" -C "dmarcula@$(hostname)" -f /home/$APP_USER/.ssh/id_ed25519
+ssh-keyscan -t ed25519 github.com >> /home/$APP_USER/.ssh/known_hosts
+chown "$APP_USER":"$APP_USER" /home/$APP_USER/.ssh/known_hosts
+
+cat /home/$APP_USER/.ssh/id_ed25519.pub
+```
+
+Copy the printed line to GitHub: **repository → Settings → Deploy keys → Add deploy key**
+(title e.g. the server name, leave *Allow write access* unchecked).
+If the repository is made public later, skip this and use the `https://` URL instead.
+
+Then download the code and install the Python libraries:
+
+```bash
 cd /tmp
-runuser -u "$APP_USER" -- git clone https://github.com/DuprTECH/DMARCula---DMARC-Anylzer.git "$APP_DIR"
+runuser -u "$APP_USER" -- git clone git@github.com:DuprTECH/DMARCula---DMARC-Anylzer.git "$APP_DIR"
 
 cd "$APP_DIR"
 runuser -u "$APP_USER" -- python3.11 -m venv .venv

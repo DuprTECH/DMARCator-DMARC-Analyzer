@@ -51,6 +51,9 @@ curl -fsSL https://raw.githubusercontent.com/DuprTECH/DMARCula---DMARC-Anylzer/m
 sudo bash install.sh
 ```
 
+While the repository is private, clone it with a deploy key first (step 3 of the guide) and run
+`sudo bash <app dir>/deploy/install.sh` instead.
+
 After installation:
 - connect the Exchange Online mailbox: [docs/microsoft-365.md](docs/microsoft-365.md),
 - optionally enable LDAP or SSO login: [docs/authentication.md](docs/authentication.md),

@@ -23,6 +23,11 @@ curl -fsSL https://raw.githubusercontent.com/DuprTECH/DMARCula---DMARC-Anylzer/m
 sudo bash install.sh
 ```
 
+**Private repository:** the `curl` download needs public access. Instead, do steps 0, 1 and 3
+(deploy key + `git clone`) of [deploy-debian.md](deploy-debian.md) / [deploy-rhel.md](deploy-rhel.md),
+then run the installer from the clone: `sudo bash /home/dmarc/dmarcula/deploy/install.sh`
+(or `/opt/dmarcula/...` on RHEL). It uses the existing clone and does the remaining steps.
+
 The rest of this page is reference material: how it runs, sizing, web server variants,
 hosting panels, Docker, updating and troubleshooting.
 

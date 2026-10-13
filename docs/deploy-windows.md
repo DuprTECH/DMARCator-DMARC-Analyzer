@@ -72,7 +72,7 @@ For 100+ domains, open `C:\Program Files\MariaDB 11.4\data\my.ini`, add
 ## Step 3 – download the application
 
 ```powershell
-git clone https://github.com/DuprTECH/DMARCula---DMARC-Anylzer.git $AppDir
+git clone https://github.com/DuprTECH/DMARCula---DMARC-Anylzer.git $AppDir    # private repo: a GitHub login window opens
 Set-Location $AppDir
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip

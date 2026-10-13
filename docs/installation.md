@@ -1,21 +1,40 @@
 # Installation
 
-This guide covers a production install on a Linux server with **MariaDB** (recommended for
-dozens to hundreds of domains), step by step for each distribution family.
+**Step-by-step guides, copy & paste from top to bottom:**
+
+| System | Guide |
+|---|---|
+| Debian 12+ / Ubuntu 22.04+ | [deploy-debian.md](deploy-debian.md) |
+| RHEL / Rocky / AlmaLinux 8–9 | [deploy-rhel.md](deploy-rhel.md) |
+| openSUSE Leap / SLES 15 | [deploy-suse.md](deploy-suse.md) |
+| Windows Server 2019+ (IIS) | [deploy-windows.md](deploy-windows.md) |
+| Any OS with Docker | [Docker Compose](#docker-compose) |
+| Other Linux (Arch, Alpine, …) | [Other distributions](#other-distributions) |
+
+Each guide follows the same order: **packages → database → `git clone` → `.env` → service →
+web server → HTTPS → cron → first login.** The configuration files the guides use are in
+[`deploy/`](../deploy) (systemd unit, Apache / nginx / IIS configs, cron jobs).
+
+**Automatic alternative (Linux):** [`deploy/install.sh`](../deploy/install.sh) performs the
+same steps after asking a few questions:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/DuprTECH/DMARCula---DMARC-Anylzer/main/deploy/install.sh -o install.sh
+sudo bash install.sh
+```
+
+The rest of this page is reference material: how it runs, sizing, web server variants,
+hosting panels, Docker, updating and troubleshooting.
 
 - [How it runs](#how-it-runs)
 - [Requirements and sizing](#requirements-and-sizing)
-- [Debian 12 / Ubuntu 22.04+ (step by step)](#debian-12--ubuntu-2204-step-by-step)
-- [RHEL / Rocky / AlmaLinux 9 (step by step)](#rhel--rocky--almalinux-9-step-by-step)
-- [Other distributions](#other-distributions)
-- [Apache instead of nginx](#apache-instead-of-nginx) (Let's Encrypt, own certificate, existing `public_html` vhost, EL)
+- [Apache reference](#apache-reference) (Let's Encrypt, own certificate, existing `public_html` vhost, EL)
+- [nginx instead of Apache](#nginx-instead-of-apache)
 - [Hosting panels and `public_html`](#hosting-panels-and-public_html)
 - [Docker Compose](#docker-compose)
+- [Other distributions](#other-distributions)
 - [Updating](#updating)
-- [Backup and restore](#backup-and-restore)
 - [Troubleshooting](#troubleshooting)
-
-After installing, set up cron jobs, backups and monitoring: see [Operations](operations.md).
 
 ## How it runs
 
@@ -59,246 +78,7 @@ Network access needed from the server:
 Users' browsers load the chart library from `cdn.jsdelivr.net`
 (see [offline environments](#troubleshooting)).
 
----
-
-## Debian 12 / Ubuntu 22.04+ (step by step)
-
-These commands assume you install as an administrator with `sudo`. They create a dedicated
-system user `dmarc` with the app in `/home/dmarc/dmarcula`. Replace the example values
-(`dmarc.example.com`, passwords) with your own.
-
-> Debian 11 ships Python 3.9, which is too old. Use Debian 12+ or Ubuntu 22.04+.
-
-### 1. Packages
-
-```bash
-sudo apt update
-sudo apt install -y python3 python3-venv python3-pip git mariadb-server nginx certbot python3-certbot-nginx
-python3 --version        # must be 3.10 or newer
-```
-
-### 2. MariaDB database
-
-```bash
-sudo mariadb-secure-installation          # set root auth, remove test DB / anonymous users
-
-DB_PASS="$(openssl rand -base64 24 | tr -d '/+=')"
-echo "Database password: $DB_PASS"        # keep it for step 5
-
-sudo mariadb <<SQL
-CREATE DATABASE dmarcula CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'dmarcula'@'localhost' IDENTIFIED BY '${DB_PASS}';
-GRANT ALL PRIVILEGES ON dmarcula.* TO 'dmarcula'@'localhost';
-FLUSH PRIVILEGES;
-SQL
-```
-
-Optional tuning for 100+ domains, so the working set fits in memory:
-
-```bash
-sudo tee /etc/mysql/mariadb.conf.d/90-dmarcula.cnf >/dev/null <<'EOF'
-[mysqld]
-innodb_buffer_pool_size = 512M
-EOF
-sudo systemctl restart mariadb
-```
-
-### 3. System user and code
-
-```bash
-# skip useradd if the user "dmarc" already exists
-sudo useradd --create-home --shell /bin/bash dmarc
-
-sudo -u dmarc git clone https://github.com/DuprTECH/DMARCula---DMARC-Anylzer.git /home/dmarc/dmarcula
-```
-
-### 4. Python environment
-
-```bash
-cd /home/dmarc/dmarcula
-sudo -u dmarc python3 -m venv .venv
-sudo -u dmarc .venv/bin/pip install --upgrade pip
-sudo -u dmarc .venv/bin/pip install -r requirements.txt
-```
-
-### 5. Configuration
-
-```bash
-cd /home/dmarc/dmarcula
-sudo -u dmarc cp .env.example .env
-sudo chmod 600 .env
-
-SECRET="$(openssl rand -base64 48 | tr -d '\n/+=')"
-sudo -u dmarc sed -i \
-  -e "s|^SECRET_KEY=.*|SECRET_KEY=${SECRET}|" \
-  -e "s|^BASE_URL=.*|BASE_URL=https://dmarc.example.com|" \
-  -e "s|^# DATABASE_URL=mysql.*|DATABASE_URL=mysql+pymysql://dmarcula:${DB_PASS}@localhost:3306/dmarcula|" \
-  .env
-
-sudo -u dmarc nano .env      # set ADMIN_PASSWORD, and optionally LDAP_* / OIDC_* / DNS_SERVERS
-```
-
-Check that the settings load and the database is reachable. This also creates the tables:
-
-```bash
-sudo -u dmarc .venv/bin/python -c "from app.db import init_db; init_db(); print('database OK')"
-```
-
-### 6. systemd service
-
-```bash
-sudo tee /etc/systemd/system/dmarcula.service >/dev/null <<'EOF'
-[Unit]
-Description=DMARCula DMARC analyzer
-After=network-online.target mariadb.service
-Wants=network-online.target
-
-[Service]
-User=dmarc
-Group=dmarc
-WorkingDirectory=/home/dmarc/dmarcula
-ExecStart=/home/dmarc/dmarcula/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips 127.0.0.1
-Restart=always
-RestartSec=5
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=full
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl daemon-reload
-sudo systemctl enable --now dmarcula
-sudo systemctl status dmarcula --no-pager
-curl -s http://127.0.0.1:8000/healthz          # {"status":"ok"}
-```
-
-Logs: `sudo journalctl -u dmarcula -f`
-
-### 7. nginx reverse proxy and HTTPS
-
-> Using **Apache** instead? Skip this step and follow [Apache instead of nginx](#apache-instead-of-nginx).
-
-```bash
-sudo tee /etc/nginx/sites-available/dmarcula >/dev/null <<'EOF'
-server {
-    listen 80;
-    server_name dmarc.example.com;
-
-    client_max_body_size 60m;        # manual report uploads
-
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 120s;
-    }
-}
-EOF
-
-sudo ln -s /etc/nginx/sites-available/dmarcula /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-
-sudo certbot --nginx -d dmarc.example.com      # obtains a certificate and enables HTTPS
-```
-
-When HTTPS works, set `COOKIE_SECURE=true` in `.env` and restart:
-
-```bash
-sudo -u dmarc sed -i 's|^COOKIE_SECURE=.*|COOKIE_SECURE=true|' /home/dmarc/dmarcula/.env
-sudo systemctl restart dmarcula
-```
-
-### 8. Firewall (if `ufw` is enabled)
-
-```bash
-sudo ufw allow 'Nginx Full'
-```
-
-### 9. First login
-
-Open `https://dmarc.example.com` and sign in with `ADMIN_USERNAME` / `ADMIN_PASSWORD`. Then:
-
-1. *Administrácia → Poštové schránky* (Administration → Mailboxes): add the Exchange Online
-   mailbox. See [Microsoft 365 setup](microsoft-365.md).
-2. Click **Test**, then **Spustiť** (Run).
-3. Optionally configure LDAP or SSO. See [Authentication](authentication.md).
-4. Set up backups, data retention and monitoring. See [Operations](operations.md).
-
----
-
-## RHEL / Rocky / AlmaLinux 9 (step by step)
-
-The default `python3` on EL9 is 3.9, so install `python3.11` explicitly.
-
-```bash
-# 1. packages
-sudo dnf install -y python3.11 python3.11-pip git mariadb-server nginx policycoreutils-python-utils
-sudo systemctl enable --now mariadb
-
-# 2. database (same SQL as on Debian)
-sudo mysql_secure_installation
-DB_PASS="$(openssl rand -base64 24 | tr -d '/+=')"; echo "Database password: $DB_PASS"
-sudo mysql <<SQL
-CREATE DATABASE dmarcula CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'dmarcula'@'localhost' IDENTIFIED BY '${DB_PASS}';
-GRANT ALL PRIVILEGES ON dmarcula.* TO 'dmarcula'@'localhost';
-FLUSH PRIVILEGES;
-SQL
-
-# 3. user and code
-sudo useradd --create-home dmarc
-sudo -u dmarc git clone https://github.com/DuprTECH/DMARCula---DMARC-Anylzer.git /home/dmarc/dmarcula
-
-# 4. python environment
-cd /home/dmarc/dmarcula
-sudo -u dmarc python3.11 -m venv .venv
-sudo -u dmarc .venv/bin/pip install --upgrade pip
-sudo -u dmarc .venv/bin/pip install -r requirements.txt
-```
-
-Continue with **steps 5 and 6 from the Debian section** (configuration and systemd unit are
-identical). Then set up nginx. EL uses `/etc/nginx/conf.d/` and SELinux must allow the proxy
-connection:
-
-```bash
-# put the same server { … } block as in Debian step 7 into this file:
-sudo nano /etc/nginx/conf.d/dmarcula.conf
-
-sudo setsebool -P httpd_can_network_connect 1      # SELinux: let nginx connect to 127.0.0.1:8000
-sudo systemctl enable --now nginx
-
-sudo firewall-cmd --permanent --add-service=http --add-service=https
-sudo firewall-cmd --reload
-
-sudo dnf install -y certbot python3-certbot-nginx  # from EPEL: sudo dnf install -y epel-release
-sudo certbot --nginx -d dmarc.example.com
-```
-
-If the home directory is not readable by the service (SELinux denies `/home` for services
-on some setups), install into `/opt/dmarcula` instead and change the paths in the unit file.
-
----
-
-## Other distributions
-
-The steps are the same on any systemd-based Linux. Only the package names differ:
-
-| Distribution | Packages |
-|---|---|
-| openSUSE Leap 15.5+ | `sudo zypper install python311 python311-pip git mariadb nginx` (use `python3.11 -m venv`) |
-| Arch Linux | `sudo pacman -S python git mariadb nginx`, then `sudo mariadb-install-db --user=mysql --basedir=/usr --datadir=/var/lib/mysql` |
-| Alpine (no systemd) | `apk add python3 py3-pip git mariadb mariadb-client nginx`, run via OpenRC or use Docker |
-| Any (no root needed for the app) | install Python 3.10+ via [uv](https://docs.astral.sh/uv/): `uv venv --python 3.12 .venv` |
-
-Then continue with: database SQL → user and code → `python -m venv` and `pip install` →
-`.env` → systemd unit → reverse proxy.
-
----
-
-## Apache instead of nginx
+## Apache reference
 
 DMARCula needs its **own host name** (e.g. `dmarc.example.com`). It can't be served from a
 sub-path like `https://example.com/dmarc/`. Apache only forwards requests to
@@ -462,12 +242,28 @@ The configuration is the same as above, but:
 | SSO error after Microsoft login | `BASE_URL` must be the exact public `https://` URL, and the redirect URI in Entra ID must match it. |
 | Upload fails with `413` | Raise `LimitRequestBody` (bytes). |
 
+## nginx instead of Apache
+
+In step 6 of the Linux guides, use the nginx template instead of the Apache one:
+
+```bash
+apt install -y nginx certbot python3-certbot-nginx          # dnf / zypper on other systems
+cd "$APP_DIR"
+sed -e "s|__HOST__|$DMARC_HOST|g" -e "s|__PORT__|8000|g" deploy/nginx/dmarcula.conf \
+    > /etc/nginx/sites-available/dmarcula                   # EL: /etc/nginx/conf.d/dmarcula.conf, SUSE: /etc/nginx/vhosts.d/dmarcula.conf
+ln -s /etc/nginx/sites-available/dmarcula /etc/nginx/sites-enabled/     # Debian/Ubuntu only
+nginx -t && systemctl reload nginx
+certbot --nginx -d "$DMARC_HOST" --redirect
+```
+
+On EL, also run `setsebool -P httpd_can_network_connect 1`.
+
 ## Hosting panels and `public_html`
 
 If the server is managed by a panel (Virtualmin, ISPConfig, HestiaCP, CloudPanel…) and the
 site's document root is `/home/dmarc/public_html`, follow these rules:
 
-1. Install the application **outside** `public_html` (e.g. `/home/dmarc/dmarcula`), with steps 3–6 above.
+1. Install the application **outside** `public_html` (e.g. `/home/dmarc/dmarcula`) with steps 1–5 of the guide for your system.
 2. Run it as a systemd service, which needs root once. Most panels let the admin add custom
    services. Without root and without systemd, the app cannot run reliably, because the
    mailbox polling stops whenever the process is not running.
@@ -504,6 +300,18 @@ nginx or Apache proxy in front of port 8000.
 
 ---
 
+## Other distributions
+
+The steps of [deploy-debian.md](deploy-debian.md) apply to any systemd-based Linux. Only the
+package names and paths differ:
+
+| Distribution | Packages (step 1) | Notes |
+|---|---|---|
+| Arch Linux | `pacman -S python git mariadb apache certbot certbot-apache cronie` | before step 2: `mariadb-install-db --user=mysql --basedir=/usr --datadir=/var/lib/mysql`; enable `mod_proxy`, `mod_proxy_http`, `mod_headers` in `/etc/httpd/conf/httpd.conf` and `Include conf/extra/dmarcula.conf` |
+| Fedora | `dnf install python3 git mariadb-server httpd mod_ssl cronie certbot python3-certbot-apache` | as [RHEL](deploy-rhel.md), no EPEL needed |
+| Alpine (OpenRC, no systemd) | `apk add python3 py3-pip git mariadb mariadb-client apache2 apache2-proxy certbot` | `/etc/init.d/mariadb setup`; run the app with an OpenRC service instead of systemd, or use Docker |
+| Any distro with Python < 3.10 | install [uv](https://docs.astral.sh/uv/), then in step 3 use `uv venv --seed --python 3.12 .venv` | uv downloads a private Python 3.12 |
+
 ## Updating
 
 ```bash
@@ -516,22 +324,7 @@ sudo systemctl restart dmarcula
 Schema changes are applied automatically at startup: new tables, columns and indexes are
 created and new columns are backfilled. Back up the database before upgrading.
 
-## Backup and restore
-
-```bash
-# MariaDB
-mariadb-dump --single-transaction -u dmarcula -p dmarcula | gzip > dmarcula-$(date +%F).sql.gz
-gunzip -c dmarcula-2026-10-13.sql.gz | mariadb -u dmarcula -p dmarcula      # restore
-
-# SQLite (safe while running)
-sqlite3 data/dmarcula.db ".backup dmarcula-$(date +%F).db"
-```
-
-Back up `.env` as well. Mailbox credentials in the database are encrypted with a key derived
-from `SECRET_KEY`. Without the same key they can't be decrypted and must be re-entered.
-
-Scheduled backups, data retention, monitoring and log handling are covered in
-[Operations](operations.md).
+Backups, data retention, monitoring and logs: see [Operations](operations.md).
 
 ## Troubleshooting
 

@@ -26,30 +26,38 @@ The user interface is in Slovak. The documentation is in English.
 | **Tools** | DNS check of any domain, DMARC record generator, CSV export, dark mode, responsive layout |
 | **Databases** | MariaDB / MySQL, PostgreSQL or SQLite. Schema and indexes are created and upgraded automatically. |
 
-## Quick start
+## Installation
 
-**Production on Linux (Debian, Ubuntu, RHEL/Rocky/Alma, …) with MariaDB:** follow the
-step-by-step commands in [docs/installation.md](docs/installation.md).
+Pick your operating system. Each guide is a numbered list of commands to copy and paste,
+always in the same order:
 
-**Docker Compose (PostgreSQL):**
+**1. packages → 2. database (MariaDB) → 3. `git clone` + Python → 4. configuration (`.env`) →
+5. service → 6. web server (Apache / IIS) → 7. HTTPS → 8. cron / scheduled tasks → 9. first login**
+
+| Operating system | Step-by-step guide |
+|---|---|
+| **Debian 12+ / Ubuntu 22.04+** | [docs/deploy-debian.md](docs/deploy-debian.md) |
+| **RHEL / Rocky Linux / AlmaLinux 8–9** | [docs/deploy-rhel.md](docs/deploy-rhel.md) |
+| **openSUSE Leap / SLES 15** | [docs/deploy-suse.md](docs/deploy-suse.md) |
+| **Windows Server 2019+ (IIS)** | [docs/deploy-windows.md](docs/deploy-windows.md) |
+| Arch, Fedora, Alpine, other Linux | [docs/installation.md → Other distributions](docs/installation.md#other-distributions) |
+| Any OS with Docker | [docs/installation.md → Docker Compose](docs/installation.md#docker-compose) |
+
+**Prefer one command?** On Debian/Ubuntu, RHEL-family and openSUSE, the installer does all of the steps
+above after asking for the host name and admin password. Running it again updates the app.
 
 ```bash
-cp .env.example .env          # set SECRET_KEY, ADMIN_PASSWORD, BASE_URL, POSTGRES_PASSWORD
-docker compose up -d --build
+curl -fsSL https://raw.githubusercontent.com/DuprTECH/DMARCula---DMARC-Anylzer/main/deploy/install.sh -o install.sh
+sudo bash install.sh
 ```
 
-**Local try-out (SQLite, demo data):**
+After installation:
+- connect the Exchange Online mailbox: [docs/microsoft-365.md](docs/microsoft-365.md),
+- optionally enable LDAP or SSO login: [docs/authentication.md](docs/authentication.md),
+- backups, cron jobs, logs, updates: [docs/operations.md](docs/operations.md).
 
-```bash
-python3 -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env          # set SECRET_KEY and ADMIN_PASSWORD
-python -m app.demo --days 60 --domains 20
-uvicorn app.main:app --port 8000
-```
-
-The app listens on `http://127.0.0.1:8000`. In production, put nginx or Apache with HTTPS in
-front of it, and **never install it inside `public_html`** or any other web root.
+> The application runs as a service behind Apache / nginx / IIS. **Never put it into
+> `public_html`** or any other web root, because `.env` with the passwords would become downloadable.
 
 ## Requirements
 
@@ -58,10 +66,7 @@ front of it, and **never install it inside `public_html`** or any other web root
 - outbound access to Microsoft Graph / your IMAP server and to DNS
 - a single application process (the mailbox scheduler runs in-process)
 
-## Tests
+## Development
 
-```bash
-pip install pytest
-pytest                                                    # SQLite
-TEST_DATABASE_URL="mysql+pymysql://u:p@localhost/dmarcula_test" pytest   # empty MariaDB database
-```
+A local try-out with SQLite and demo data, plus the test suite, is described in
+[docs/architecture.md → Development and tests](docs/architecture.md#development-and-tests).

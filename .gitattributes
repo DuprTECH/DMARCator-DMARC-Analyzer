@@ -1,0 +1,6 @@
+*.sh text eol=lf
+deploy/cron/* text eol=lf
+deploy/systemd/* text eol=lf
+deploy/apache/* text eol=lf
+deploy/nginx/* text eol=lf
+*.ps1 text eol=crlf

@@ -65,61 +65,48 @@ show up within that time, or immediately after the next report import.
 
 ## Cron jobs
 
-Edit the crontab of the `dmarc` user:
+The Linux deploy guides (step 8) install [`deploy/cron/dmarcula`](../deploy/cron/dmarcula) as
+**`/etc/cron.d/dmarcula`**. On Windows, the equivalent is the scheduled tasks from
+[deploy-windows.md](deploy-windows.md) step 8. The installed jobs:
 
-```bash
-sudo crontab -u dmarc -e
-```
+| When | Job | Mails `MAILTO` |
+|---|---|---|
+| daily 02:30 | MariaDB dump to `/var/backups/dmarcula/dmarcula-YYYY-MM-DD.sql.gz`, files older than 30 days deleted | on error |
+| Sundays 03:15 | `app.manage prune --days 730`: delete reports older than 2 years | on error |
+| every 30 min | `app.manage status --max-age 60`: check that every mailbox was processed within the last hour | when a mailbox fails or stalls |
 
-and paste the following (adjust the e-mail address and retention):
+To change times, retention or the alert address, edit `/etc/cron.d/dmarcula` as root. Cron
+picks up the change automatically. The file looks like this (`dmarc` = app user):
 
 ```cron
-# DMARCula – crontab of user "dmarc"
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
 MAILTO=admin@example.com
-APP=/home/dmarc/dmarcula
 
-# 02:30 – database backup, keep 30 days
-30 2 * * *  mariadb-dump --single-transaction --quick dmarcula | gzip > /home/dmarc/backup/dmarcula-$(date +\%F).sql.gz && find /home/dmarc/backup -name 'dmarcula-*.sql.gz' -mtime +30 -delete
-
-# 03:15 every Sunday – delete reports older than 2 years
-15 3 * * 0  cd $APP && .venv/bin/python -m app.manage prune --days 730 > /dev/null
-
-# every 30 minutes – alert (cron mails the output) when a mailbox fails or stalls
-*/30 * * * * cd $APP && .venv/bin/python -m app.manage status --max-age 60 > /tmp/dmarcula-status.txt || cat /tmp/dmarcula-status.txt
-
-# every 5 minutes – alert when the web application doesn't answer
-*/5 * * * *  curl -fsS -m 10 -o /dev/null http://127.0.0.1:8000/healthz || echo "DMARCula is not responding on 127.0.0.1:8000"
-```
-
-Before the first run, prepare the backup folder and password-less MariaDB access for the user:
-
-```bash
-sudo -u dmarc mkdir -p /home/dmarc/backup
-sudo -u dmarc tee /home/dmarc/.my.cnf >/dev/null <<'EOF'
-[client]
-user=dmarcula
-password=THE_DATABASE_PASSWORD
-EOF
-sudo chmod 600 /home/dmarc/.my.cnf
-sudo -u dmarc mariadb-dump --single-transaction dmarcula | head -3      # test
+30 2 * * *   dmarc  mariadb-dump --defaults-extra-file=/home/dmarc/dmarcula/.backup.my.cnf --single-transaction --quick dmarcula | gzip > /var/backups/dmarcula/dmarcula-$(date +\%F).sql.gz && find /var/backups/dmarcula -name 'dmarcula-*.sql.gz' -mtime +30 -delete
+15 3 * * 0   dmarc  cd /home/dmarc/dmarcula && .venv/bin/python -m app.manage prune --days 730 > /dev/null
+*/30 * * * * dmarc  cd /home/dmarc/dmarcula && .venv/bin/python -m app.manage status --max-age 60 > /tmp/dmarcula-status.txt || cat /tmp/dmarcula-status.txt
 ```
 
 Notes:
-- `%` must be escaped as `\%` in a crontab, which is why the backup line uses `$(date +\%F)`.
-- `MAILTO` needs a working local MTA (`sudo apt install -y postfix` configured as a
-  *Satellite system* / relay to your mail server, or `msmtp-mta`). Without one, cron output
-  goes to `/var/mail/dmarc`.
-- The `status` job sends mail only when there's a problem, because cron mails only when a job prints something.
-- Verify the jobs are installed: `sudo crontab -u dmarc -l`. Check that they ran:
-  `grep CRON /var/log/syslog` on Debian, `journalctl -u cron`, or `/var/log/cron` on EL.
+- Lines in `/etc/cron.d/` have a **user column** (`dmarc`) after the schedule, unlike `crontab -e`.
+- `%` must be escaped as `\%`.
+- `.backup.my.cnf` (created in step 8, mode 600) holds the database credentials for the dump.
+- `MAILTO` needs a working local MTA, e.g. `apt install postfix` configured as *Satellite system*
+  with your mail server as relay. Without one, cron output goes to `/var/mail/dmarc`.
+- Check that jobs ran: `grep dmarcula /var/log/syslog` (Debian), `journalctl -u cron` or
+  `journalctl -u crond`, or `/var/log/cron` (EL).
+- Optional extra check that the web app answers (every 5 min):
+
+  ```cron
+  */5 * * * * dmarc  curl -fsS -m 10 -o /dev/null http://127.0.0.1:8000/healthz || echo "DMARCula is not responding"
+  ```
 
 ### Polling from cron (only with `SCHEDULER_ENABLED=false`)
 
 ```cron
-*/15 * * * * cd $APP && flock -n /tmp/dmarcula-poll.lock .venv/bin/python -m app.manage poll > /dev/null
-40 4 * * *   cd $APP && flock -n /tmp/dmarcula-dns.lock  .venv/bin/python -m app.manage dns  > /dev/null
+*/15 * * * * dmarc  cd /home/dmarc/dmarcula && flock -n /tmp/dmarcula-poll.lock .venv/bin/python -m app.manage poll > /dev/null
+40 4 * * *   dmarc  cd /home/dmarc/dmarcula && flock -n /tmp/dmarcula-dns.lock  .venv/bin/python -m app.manage dns  > /dev/null
 ```
 
 `flock -n` skips a run if the previous one is still going.
@@ -136,7 +123,7 @@ Description=DMARCula database backup
 [Service]
 Type=oneshot
 User=dmarc
-ExecStart=/bin/bash -c 'mariadb-dump --single-transaction --quick dmarcula | gzip > /home/dmarc/backup/dmarcula-$(date +%%F).sql.gz && find /home/dmarc/backup -name "dmarcula-*.sql.gz" -mtime +30 -delete'
+ExecStart=/bin/bash -c 'mariadb-dump --defaults-extra-file=/home/dmarc/dmarcula/.backup.my.cnf --single-transaction --quick dmarcula | gzip > /var/backups/dmarcula/dmarcula-$(date +%%F).sql.gz && find /var/backups/dmarcula -name "dmarcula-*.sql.gz" -mtime +30 -delete'
 EOF
 
 sudo tee /etc/systemd/system/dmarcula-backup.timer >/dev/null <<'EOF'
@@ -166,19 +153,19 @@ What to back up:
 | `/home/dmarc/dmarcula/.env` | `SECRET_KEY` decrypts the stored mailbox credentials. Without it they must be re-entered. |
 | Apache/nginx vhost, systemd unit | configuration |
 
-The nightly dump from the cron job lands in `/home/dmarc/backup`. Copy it off the server as
+The nightly dump from the cron job lands in `/var/backups/dmarcula`. Copy it off the server as
 well (your backup system, `rsync`, `restic`, …).
 
 **Restore:**
 
 ```bash
 sudo systemctl stop dmarcula
-gunzip -c /home/dmarc/backup/dmarcula-2026-10-13.sql.gz | sudo mariadb dmarcula
+gunzip -c /var/backups/dmarcula/dmarcula-2026-10-13.sql.gz | sudo mariadb dmarcula
 sudo systemctl start dmarcula
 ```
 
-**Move to a new server:** install as described in [Installation](installation.md) (steps 1–4),
-copy `.env`, restore the dump, then start the service.
+**Move to a new server:** follow your system's deploy guide up to step 3, copy the old `.env`,
+restore the dump, then continue with step 5.
 
 ## Data retention
 

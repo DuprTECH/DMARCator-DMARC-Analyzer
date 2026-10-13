@@ -74,8 +74,8 @@ def status(max_age: int = 60) -> int:
     with session_scope() as db:
         sources = db.scalars(select(MailSource).order_by(MailSource.name)).all()
         if not sources:
-            print("No mailboxes configured.")
-            return 1
+            print("No mailboxes configured yet.")
+            return 0
         for s in sources:
             stale = s.enabled and (not s.last_run or s.last_run < utcnow() - timedelta(minutes=max_age))
             bad = s.enabled and (s.last_status == "error" or stale)

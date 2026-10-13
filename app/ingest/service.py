@@ -2,12 +2,14 @@
 
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..analysis import dns_checks
+from ..analysis.cache import invalidate
 from ..analysis.enrich import enrich_ips
 from ..analysis.senders import categorize, identify
 from ..config import get_settings
@@ -52,6 +54,13 @@ def _touch_domain(db: Session, name: str, seen):
 # ------------------------------------------------------------------ store
 
 
+def first_results(dkim: list | None, spf: list | None) -> dict:
+    d = (dkim or [{}])[0]
+    s = (spf or [{}])[0]
+    return {"dkim_domain": d.get("domain") or None, "dkim_result": d.get("result") or None,
+            "spf_domain": s.get("domain") or None, "spf_result": s.get("result") or None}
+
+
 def store(db: Session, parsed: ParsedReport, source: str) -> bool:
     """Persist one parsed report. Returns False for duplicates."""
     d = parsed.data
@@ -92,6 +101,7 @@ def store(db: Session, parsed: ParsedReport, source: str) -> bool:
                     **{k: r[k] for k in ("source_ip", "count", "disposition", "policy_dkim", "policy_spf",
                                          "dmarc_pass", "spf_aligned", "dkim_aligned", "reasons", "header_from",
                                          "envelope_from", "envelope_to", "dkim_results", "spf_results")},
+                    **first_results(r["dkim_results"], r["spf_results"]),
                     ptr=ptr,
                     base_domain=info.base_domain if info else None,
                     sender=sender,
@@ -146,6 +156,8 @@ def store_result(db: Session, result: ExtractResult, source: str) -> dict:
         except Exception as exc:  # noqa: BLE001
             log.exception("store failed")
             stats["errors"].append(f"{parsed.kind}: {exc}")
+    if stats["new"]:
+        invalidate()
     return stats
 
 
@@ -252,15 +264,28 @@ def refresh_dns(only_missing: bool = False):
         return
     try:
         with session_scope() as db:
-            q = select(Domain.id)
+            q = select(Domain.id, Domain.name)
             if only_missing:
                 q = q.where(Domain.dns_checked_at.is_(None))
-            ids = list(db.scalars(q))
-        for did in ids:
+            todo = [(did, name, selectors_for(db, name)) for did, name in db.execute(q)]
+
+        def check(item):
+            did, name, selectors = item
             try:
-                with session_scope() as db:
-                    check_and_save(db, db.get(Domain, did))
+                return did, dns_checks.check_domain(name, selectors)
             except Exception:  # noqa: BLE001
-                log.exception("DNS check failed for domain id %s", did)
+                log.exception("DNS check failed for %s", name)
+                return did, None
+
+        # network-bound: check several domains at once, write results from this thread
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for did, result in pool.map(check, todo):
+                if result:
+                    with session_scope() as db:
+                        dom = db.get(Domain, did)
+                        if dom:
+                            dom.dns, dom.dns_score, dom.dns_checked_at = result, result["score"], utcnow()
+        invalidate()
+        log.info("DNS check finished for %d domains", len(todo))
     finally:
         _dns_lock.release()

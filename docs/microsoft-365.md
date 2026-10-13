@@ -1,121 +1,172 @@
-# Microsoft 365 a príjem reportov
+# Microsoft 365 setup and report delivery
 
-Tento návod popisuje cestu reportu od poskytovateľa až do aplikácie:
+This page follows a report from the receiving provider to DMARCula:
 
-**poskytovatelia → `rua=` adresa → schránka v Exchange Online → Microsoft Graph → DMARCula**
+**receivers → `rua=` address → Exchange Online mailbox → Microsoft Graph → DMARCula**
 
-## 1. Schránka na reporty
+## 1. Report mailbox
 
-Vytvorte **zdieľanú schránku** (nepotrebuje licenciu), napr. `dmarc@contoso.sk`:
+Create a **shared mailbox** (needs no license), e.g. `dmarc@example.com`:
 
 ```powershell
 Connect-ExchangeOnline
-New-Mailbox -Shared -Name "DMARC reports" -PrimarySmtpAddress dmarc@contoso.sk
+New-Mailbox -Shared -Name "DMARC reports" -PrimarySmtpAddress dmarc@example.com
 ```
 
-Odporúčania k schránke:
-- Vypnite pre ňu spam filter alebo pridajte pravidlo, aby reporty nekončili v Junk. Prípadne nastavte ako priečinok v aplikácii `JunkEmail`.
-- Ak cez schránku chodí aj iná pošta, presúvajte reporty pravidlom do priečinka `Inbox/DMARC` a v aplikácii nastavte tento priečinok.
+Recommendations:
+- Make sure reports don't land in Junk. Add a transport rule or an allow entry. Alternatively,
+  set the folder in DMARCula to `JunkEmail`.
+- If the mailbox also receives other mail, route reports into `Inbox/DMARC` with an inbox rule
+  and set that folder in DMARCula.
 
-## 2. Registrácia aplikácie (Microsoft Graph)
+## 2. App registration (Microsoft Graph)
 
-1. **Entra ID → App registrations → New registration**, názov `DMARCula-mail`, single tenant, bez redirect URI.
-2. **Certificates & secrets**:
-   - **client secret** (jednoduchšie, platí max. 24 mesiacov), alebo
-   - **certifikát** (odporúčané). Vygenerujte ho, verejnú časť nahrajte do Entra a privátny kľúč (PEM) a SHA-1 thumbprint zadajte v aplikácii v sekcii *Pokročilé*.
+1. **Entra ID → App registrations → New registration**: name `DMARCula-mail`, single tenant,
+   no redirect URI.
+2. **Certificates & secrets**, either:
+   - a **client secret** (simpler, max. 24 months), or
+   - a **certificate** (recommended). Upload the public part to Entra, then paste the private key
+     (PEM) and the SHA-1 thumbprint into DMARCula under *Pokročilé* (Advanced):
 
      ```bash
      openssl req -x509 -newkey rsa:2048 -nodes -days 730 -subj "/CN=DMARCula" -keyout key.pem -out cert.pem
-     openssl x509 -in cert.pem -noout -fingerprint -sha1 | tr -d ':'   # thumbprint
+     openssl x509 -in cert.pem -noout -fingerprint -sha1 | sed 's/.*=//; s/://g'   # thumbprint
      ```
-3. Poznačte si **Application (client) ID**, **Directory (tenant) ID** a **Object ID** zo stránky *Enterprise applications* (nie z App registration).
+3. Note the **Application (client) ID**, the **Directory (tenant) ID**, and the **Object ID**
+   shown under *Enterprise applications*. That's a different object ID from the one under App registrations.
 
-## 3. Oprávnenie iba na jednu schránku (RBAC for Applications)
+## 3. Restrict the app to one mailbox (RBAC for Applications)
 
-Graph povolenie `Mail.ReadWrite` priradené v Entra ID platí pre **všetky schránky v tenante**. Pre aplikáciu, ktorá potrebuje jedinú schránku, je to zbytočne veľa. Správny postup je **Exchange Online RBAC for Applications**:
+The Graph permission `Mail.ReadWrite` granted in Entra ID applies to **every mailbox in the
+tenant**. That's far too broad for an app that needs a single mailbox. Use **Exchange Online
+RBAC for Applications** to scope it:
 
 ```powershell
 Connect-ExchangeOnline
 
-# 1) service principal v Exchange (ObjectId = Enterprise application → Object ID)
+# 1) register the service principal in Exchange (ObjectId = Enterprise application → Object ID)
 New-ServicePrincipal -AppId <ClientId> -ObjectId <EnterpriseAppObjectId> -DisplayName "DMARCula"
 
-# 2) scope obmedzený na DMARC schránku
-New-ManagementScope -Name "DMARCula-scope" -RecipientRestrictionFilter "PrimarySmtpAddress -eq 'dmarc@contoso.sk'"
+# 2) a scope containing only the report mailbox
+New-ManagementScope -Name "DMARCula-scope" -RecipientRestrictionFilter "PrimarySmtpAddress -eq 'dmarc@example.com'"
 
-# 3) priradenie roly v rámci scope
+# 3) grant the role within that scope
 New-ManagementRoleAssignment -App <ClientId> -Role "Application Mail.ReadWrite" -CustomResourceScope "DMARCula-scope"
 
-# 4) overenie – InScope musí byť True
-Test-ServicePrincipalAuthorization -Identity <ClientId> -Resource dmarc@contoso.sk
-Test-ServicePrincipalAuthorization -Identity <ClientId> -Resource ceo@contoso.sk     # musí byť False
+# 4) verify – InScope must be True for the report mailbox and False for anything else
+Test-ServicePrincipalAuthorization -Identity <ClientId> -Resource dmarc@example.com
+Test-ServicePrincipalAuthorization -Identity <ClientId> -Resource ceo@example.com
 ```
 
-V tomto prípade **nepridávajte** Graph povolenie `Mail.ReadWrite` v App registration. Ak tam už je, odstráňte ho, inak by prístup k celému tenantu zostal. Zmena RBAC sa môže prejaviť až po 30 minútach až 2 hodinách.
+With RBAC for Applications, **do not** add the `Mail.ReadWrite` Graph permission in the app
+registration. If it's already there, remove it, otherwise tenant-wide access remains. RBAC
+changes can take 30 minutes to 2 hours to apply.
 
-> **Alternatíva (staršia):** Graph povolenie `Mail.ReadWrite` s admin consent a `New-ApplicationAccessPolicy -AccessRight RestrictAccess -AppId <ClientId> -PolicyScopeGroupId <mail-enabled security group>`. Microsoft ju nahrádza mechanizmom RBAC for Applications.
+> **Legacy alternative:** grant the Graph `Mail.ReadWrite` application permission with admin
+> consent and limit it with
+> `New-ApplicationAccessPolicy -AccessRight RestrictAccess -AppId <ClientId> -PolicyScopeGroupId <mail-enabled security group>`.
+> Microsoft is replacing this with RBAC for Applications.
 
-**Ktoré oprávnenie zvoliť:**
+**Which role to use:**
 
-| Požiadavka | Rola |
+| Behaviour | Role |
 |---|---|
-| presúvať spracované správy alebo ich označovať ako prečítané (predvolené) | `Application Mail.ReadWrite` |
-| iba čítať (vypnite „Označiť ako prečítané“, „Iba neprečítané“ a presúvanie) | `Application Mail.Read` |
+| move processed messages and/or mark them read (default) | `Application Mail.ReadWrite` |
+| read only (turn off "mark as read", "only unread", and moving) | `Application Mail.Read` |
 
-## 4. Pridanie schránky v aplikácii
+## 4. Add the mailbox in DMARCula
 
 *Administrácia → Poštové schránky → Exchange Online (Graph)*:
 
-| Pole | Hodnota |
+| Field | Value |
 |---|---|
-| Tenant ID / Client ID | z kroku 2 |
-| Client secret | alebo certifikát v sekcii *Pokročilé* |
-| Schránka | `dmarc@contoso.sk` |
-| Priečinok s reportmi | `Inbox` |
-| Presunúť spracované do | `Inbox/DMARC-processed` |
+| Tenant ID / Client ID | from step 2 |
+| Client secret | or a certificate under *Pokročilé* |
+| Mailbox | `dmarc@example.com` |
+| Report folder | `Inbox` |
+| Move processed to | `Inbox/DMARC-processed` |
 
-Kliknite na **Test**. Mal by sa zobraziť počet správ v priečinku. Potom kliknite na **Spustiť**, alebo počkajte na automatický beh (`POLL_INTERVAL_MINUTES`).
+Click **Test**. It should show the message count of the folder. Then click **Spustiť** (Run),
+or wait for the next scheduled run (`POLL_INTERVAL_MINUTES`).
 
-Pri prvom spustení na schránke, kde už reporty sú, sa spracuje najviac 500 správ za jeden beh. Zvyšok sa spracuje v ďalších behoch.
+On a mailbox that already holds a backlog, at most 500 messages are processed per run. The
+rest follow in later runs.
 
-## 5. Alternatíva: IMAP s OAuth2 (Exchange Online)
+## 5. Alternative: IMAP with OAuth2 (Exchange Online)
 
-Ak nechcete Graph:
+If you prefer IMAP over Graph:
 
 ```powershell
 New-ServicePrincipal -AppId <ClientId> -ObjectId <EnterpriseAppObjectId>
-Add-MailboxPermission -Identity dmarc@contoso.sk -User <EnterpriseAppObjectId> -AccessRights FullAccess
+Add-MailboxPermission -Identity dmarc@example.com -User <EnterpriseAppObjectId> -AccessRights FullAccess
 ```
 
-V App registration pridajte povolenie **Office 365 Exchange Online → Application → `IMAP.AccessAsApp`** a udeľte admin consent. V aplikácii zvoľte IMAP s nastavením `outlook.office365.com:993`, SSL, autentifikácia *OAuth2 – Exchange Online*, používateľ `dmarc@contoso.sk` a tenant, client ID a secret.
+In the app registration, add **Office 365 Exchange Online → Application → `IMAP.AccessAsApp`**
+and grant admin consent. In DMARCula, choose IMAP with `outlook.office365.com:993`, SSL,
+authentication *OAuth2 – Exchange Online*, username `dmarc@example.com`, and the tenant ID,
+client ID and secret.
 
-IMAP s heslom (basic auth) Exchange Online nepodporuje. Funguje pre iné poštové servery (Gmail s heslom aplikácie, Zimbra, Dovecot…).
+Exchange Online doesn't allow IMAP with a password (basic auth). Password login is meant for
+other mail servers (Gmail with an app password, Dovecot, Zimbra, …).
 
-## 6. DNS záznamy pre vaše domény
+## 6. DNS records for your domains
 
-| Záznam | Hodnota | Účel |
+| Record | Value | Purpose |
 |---|---|---|
-| `_dmarc.contoso.sk TXT` | `v=DMARC1; p=none; rua=mailto:dmarc@contoso.sk; ruf=mailto:dmarc@contoso.sk; fo=1` | Začnite s `p=none` a zbierajte reporty. |
-| `_smtp._tls.contoso.sk TXT` | `v=TLSRPTv1; rua=mailto:dmarc@contoso.sk` | TLS-RPT reporty o doručovaní k vašim MX. |
-| `_mta-sts.contoso.sk TXT` + `https://mta-sts.contoso.sk/.well-known/mta-sts.txt` | `v=STSv1; id=20261013` | Vynútenie TLS pri doručovaní (voliteľné). |
+| `_dmarc.example.com TXT` | `v=DMARC1; p=none; rua=mailto:dmarc@example.com; ruf=mailto:dmarc@example.com; fo=1` | Start with `p=none` and collect reports. |
+| `_smtp._tls.example.com TXT` | `v=TLSRPTv1; rua=mailto:dmarc@example.com` | TLS-RPT reports about delivery to your MX. |
+| `_mta-sts.example.com TXT` + `https://mta-sts.example.com/.well-known/mta-sts.txt` | `v=STSv1; id=20261013` | Enforce TLS for inbound delivery (optional). |
 
-**Reporty pre inú doménu:** ak `fabrikam.sk` posiela reporty na `dmarc@contoso.sk`, musí doména **contoso.sk** povoliť ich príjem:
+**Reports for other domains.** With 140 domains, the report mailbox's domain usually differs
+from most of the domains being monitored. Each monitored domain must then be **authorized by the domain of the
+report address**. Otherwise most receivers won't send the reports. If `dmarc@example.com` collects
+reports for `example.org`, `example.net`, …, publish in the **example.com** zone:
 
 ```
-fabrikam.sk._report._dmarc.contoso.sk  TXT  "v=DMARC1"
+example.org._report._dmarc.example.com  TXT  "v=DMARC1"
+example.net._report._dmarc.example.com  TXT  "v=DMARC1"
 ```
 
-Bez neho väčšina poskytovateľov reporty nepošle. Aplikácia tento záznam kontroluje a chýbajúci ukáže v detaile domény.
+or a single wildcard for all of them:
 
-Ďalšie domény na sledovanie netreba nikde zadávať. Pridajú sa automaticky pri prvom prijatom reporte.
+```
+*._report._dmarc.example.com  TXT  "v=DMARC1"
+```
 
-## 7. DKIM v Microsoft 365
+DMARCula checks this record for every domain and flags missing ones on the domain page.
 
-Ak aplikácia ukazuje odosielateľa *Microsoft 365* v kategórii **Nesúlad** s DKIM doménou `*.onmicrosoft.com`, nemáte zapnutý vlastný DKIM podpis:
+Domains don't have to be registered anywhere in DMARCula. Each one appears automatically with its first report.
+
+## 7. DKIM in Microsoft 365
+
+If DMARCula shows *Microsoft 365* in the **Nesúlad** (non-compliant) category with a DKIM
+domain of `*.onmicrosoft.com`, custom DKIM signing is not enabled:
 
 ```powershell
-New-DkimSigningConfig -DomainName contoso.sk -Enabled $false
-Get-DkimSigningConfig contoso.sk | Format-List Selector1CNAME, Selector2CNAME
-# vytvorte CNAME selector1._domainkey a selector2._domainkey podľa výstupu, potom:
-Set-DkimSigningConfig -Identity contoso.sk -Enabled $true
+New-DkimSigningConfig -DomainName example.com -Enabled $false
+Get-DkimSigningConfig example.com | Format-List Selector1CNAME, Selector2CNAME
+# create CNAMEs selector1._domainkey and selector2._domainkey as shown, then:
+Set-DkimSigningConfig -Identity example.com -Enabled $true
 ```
+
+For many domains, loop over them:
+
+```powershell
+Get-AcceptedDomain | ForEach-Object {
+    if (-not (Get-DkimSigningConfig $_.DomainName -ErrorAction SilentlyContinue)) {
+        New-DkimSigningConfig -DomainName $_.DomainName -Enabled $false | Out-Null
+    }
+    Get-DkimSigningConfig $_.DomainName | Select-Object Domain, Enabled, Selector1CNAME, Selector2CNAME
+} | Export-Csv dkim-cnames.csv -NoTypeInformation
+```
+
+## Troubleshooting
+
+| Error in the log | Cause |
+|---|---|
+| `Token: invalid_client` | Wrong or expired client secret, or a wrong certificate thumbprint. |
+| `Token: unauthorized_client` | Wrong tenant ID or client ID. |
+| `HTTP 403 ErrorAccessDenied` | No permission on the mailbox. Check RBAC scope / admin consent, and wait for propagation. |
+| `HTTP 404 ErrorInvalidUser` / `MailboxNotEnabledForRESTAPI` | Wrong mailbox address, or the mailbox is on-premises. |
+| `Priečinok 'X' neexistuje` | Folder paths start at the mailbox root, e.g. `Inbox/DMARC`. |
+| `správa neobsahuje DMARC/TLS report` | The message had no recognizable report attachment (e.g. a regular e-mail). It's harmless. |

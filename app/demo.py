@@ -1,4 +1,4 @@
-"""Seed realistic demo data:  python -m app.demo [--days 60]
+"""Seed realistic demo data:  python -m app.demo [--days 60] [--domains 3]
 
 Generates synthetic aggregate, forensic and TLS reports through the real parser + store
 pipeline (no DNS lookups for PTR – PTR names are synthetic).
@@ -14,7 +14,16 @@ from .db import init_db, session_scope
 from .ingest.parser import extract_from_email, extract_from_file
 from .ingest.service import store_result
 
-DOMAINS = {"contoso.sk": "reject", "fabrikam.sk": "quarantine", "tailspin.eu": "none"}
+BASE_DOMAINS = {"contoso.sk": ("reject", 1.0), "fabrikam.sk": ("quarantine", 0.4), "tailspin.eu": ("none", 0.15)}
+
+
+def build_domains(n: int, rnd: random.Random) -> dict[str, tuple[str, float]]:
+    """The three showcase domains plus synthetic ones with a long-tail volume distribution."""
+    domains = dict(list(BASE_DOMAINS.items())[:n])
+    for i in range(len(domains), n):
+        policy = rnd.choices(["none", "quarantine", "reject"], [5, 2, 3])[0]
+        domains[f"firma{i:03d}.{rnd.choice(['sk', 'cz', 'eu', 'com'])}"] = (policy, min(1.0, rnd.lognormvariate(-3, 1.2)))
+    return domains
 SOURCES = [
     # ip, ptr, dkim domain, spf domain, aligned dkim, aligned spf, weight
     ("40.107.22.{}", "mail-db8eur05on{}.outbound.protection.outlook.com", "{d}", "{d}", True, True, 50),
@@ -44,18 +53,18 @@ def _xml(domain, policy, org, email, begin, end, rid, rows):
 {''.join(recs)}</feedback>""".encode()
 
 
-def seed(days: int):
+def seed(days: int, n_domains: int = 3):
     init_db()
     rnd = random.Random(42)
+    domains = build_domains(n_domains, rnd)
     ptrs: dict[str, str | None] = {}
     today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
     with session_scope() as db:
         for day in range(days, 0, -1):
             begin = today - timedelta(days=day)
             end = begin + timedelta(days=1) - timedelta(seconds=1)
-            for domain, policy in DOMAINS.items():
-                scale = {"contoso.sk": 1.0, "fabrikam.sk": 0.4, "tailspin.eu": 0.15}[domain]
-                for org, email in rnd.sample(REPORTERS, 3):
+            for domain, (policy, scale) in domains.items():
+                for org, email in rnd.sample(REPORTERS, 3 if scale > 0.1 else 1):
                     rows = []
                     for ip_t, ptr_t, dkim_t, spf_t, al_dkim, al_spf, weight in SOURCES:
                         if rnd.random() < 0.35:
@@ -88,6 +97,8 @@ def seed(days: int):
                 begin.isoformat() + "Z", end.isoformat() + "Z", day, rnd.randint(300, 900), (f := rnd.choice([0, 0, 0, 2, 5])),
                 '[{"result-type":"certificate-expired","sending-mta-ip":"209.85.220.41","receiving-mx-hostname":"contoso-sk.mail.protection.outlook.com","failed-session-count":%d}]' % f if f else "[]")
             store_result(db, extract_from_file("tls.json", tls.encode()), "demo")
+            db.commit()
+            print(f"  {begin.date()} done", flush=True)
         # a forensic sample
         eml = f"""From: dmarc@seznam.cz
 To: ruf@contoso.sk
@@ -125,20 +136,22 @@ Message-ID: <fake123@unknown-host.ru>
 --b1--
 """.encode()
         store_result(db, extract_from_email(eml), "demo")
-        for domain in DOMAINS:
+        for domain, (policy, _) in domains.items():
             from .models import Domain
 
-            dom = db.query(Domain).filter_by(name=domain).one()
-            dom.dns = _fake_dns(domain, DOMAINS[domain])
+            dom = db.query(Domain).filter_by(name=domain).one_or_none()
+            if not dom:
+                continue
+            dom.dns = _fake_dns(domain, policy)
             dom.dns_score = dom.dns["score"]
             dom.dns_checked_at = today
-    print(f"Demo data for {days} days created.")
+    print(f"Demo data for {days} days and {len(domains)} domains created.")
 
 
 def _fake_dns(domain, policy):
     from .analysis.dns_checks import grade
 
-    lookups = {"contoso.sk": 6, "fabrikam.sk": 11, "tailspin.eu": 4}[domain]
+    lookups = {"contoso.sk": 6, "fabrikam.sk": 11, "tailspin.eu": 4}.get(domain, 3 + len(domain) % 9)
     score = {"reject": 92, "quarantine": 71, "none": 44}[policy]
     rec = f"v=DMARC1; p={policy}; rua=mailto:dmarc@{domain}; fo=1"
     spf_issues = [{"level": "error", "msg": f"{lookups} DNS lookupov – limit je 10 (permerror)."}] if lookups > 10 else []
@@ -165,4 +178,6 @@ def _fake_dns(domain, policy):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=60)
-    seed(ap.parse_args().days)
+    ap.add_argument("--domains", type=int, default=3)
+    args = ap.parse_args()
+    seed(args.days, args.domains)

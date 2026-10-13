@@ -15,5 +15,7 @@ apscheduler>=3.10,<4
 cryptography>=43
 defusedxml>=0.7
 maxminddb>=2.6
+# MariaDB / MySQL (optional, set DATABASE_URL=mysql+pymysql://...)
+PyMySQL>=1.1
 # PostgreSQL (optional, set DATABASE_URL=postgresql+psycopg://...)
 psycopg[binary]>=3.2

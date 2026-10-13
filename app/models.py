@@ -12,9 +12,13 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
+
+# MariaDB/MySQL TEXT is capped at 64 KB – raw report XML and mail headers can be larger
+LongText = Text().with_variant(LONGTEXT(), "mysql", "mariadb")
 
 
 def utcnow() -> datetime:
@@ -75,7 +79,10 @@ class Domain(Base):
 
 class AggregateReport(Base):
     __tablename__ = "aggregate_reports"
-    __table_args__ = (UniqueConstraint("org_name", "report_id", "domain", name="uq_aggregate"),)
+    __table_args__ = (
+        UniqueConstraint("org_name", "report_id", "domain", name="uq_aggregate"),
+        Index("ix_rep_domain_end", "domain", "date_end"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     org_name: Mapped[str] = mapped_column(String(255), index=True)
@@ -94,7 +101,7 @@ class AggregateReport(Base):
     message_count: Mapped[int] = mapped_column(Integer, default=0)
     source: Mapped[str | None] = mapped_column(String(255))
     received_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
-    raw_xml: Mapped[str | None] = mapped_column(Text)
+    raw_xml: Mapped[str | None] = mapped_column(LongText)
 
     records: Mapped[list["AggregateRecord"]] = relationship(
         back_populates="report", cascade="all, delete-orphan", passive_deletes=True
@@ -105,6 +112,7 @@ class AggregateRecord(Base):
     __tablename__ = "aggregate_records"
     __table_args__ = (
         Index("ix_rec_domain_day", "domain", "day"),
+        Index("ix_rec_day", "day"),
         Index("ix_rec_ip", "source_ip"),
     )
 
@@ -127,6 +135,11 @@ class AggregateRecord(Base):
     envelope_to: Mapped[str | None] = mapped_column(String(255))
     dkim_results: Mapped[list | None] = mapped_column(JSON)
     spf_results: Mapped[list | None] = mapped_column(JSON)
+    # first DKIM / SPF result, denormalized so failures can be grouped in SQL
+    dkim_domain: Mapped[str | None] = mapped_column(String(255))
+    dkim_result: Mapped[str | None] = mapped_column(String(16))
+    spf_domain: Mapped[str | None] = mapped_column(String(255))
+    spf_result: Mapped[str | None] = mapped_column(String(16))
     ptr: Mapped[str | None] = mapped_column(String(255))
     base_domain: Mapped[str | None] = mapped_column(String(255))
     sender: Mapped[str | None] = mapped_column(String(128))
@@ -158,7 +171,7 @@ class ForensicReport(Base):
     ptr: Mapped[str | None] = mapped_column(String(255))
     country: Mapped[str | None] = mapped_column(String(64))
     feedback_fields: Mapped[dict | None] = mapped_column(JSON)
-    original_headers: Mapped[str | None] = mapped_column(Text)
+    original_headers: Mapped[str | None] = mapped_column(LongText)
     source: Mapped[str | None] = mapped_column(String(255))
 
 

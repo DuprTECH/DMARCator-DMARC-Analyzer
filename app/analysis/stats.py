@@ -4,8 +4,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import case, distinct, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import BigInteger, case, cast, distinct, exists, func, select
+from sqlalchemy.orm import Session, aliased
 
 from ..models import AggregateRecord as R
 from ..models import AggregateReport, Domain, ForensicReport, TlsReport
@@ -48,11 +48,12 @@ class Filter:
         return q
 
 
+# SUM() yields DECIMAL on MariaDB/MySQL – cast so every backend returns plain ints
 def _sum_if(cond):
-    return func.coalesce(func.sum(case((cond, R.count), else_=0)), 0)
+    return cast(func.coalesce(func.sum(case((cond, R.count), else_=0)), 0), BigInteger)
 
 
-TOTAL = func.coalesce(func.sum(R.count), 0)
+TOTAL = cast(func.coalesce(func.sum(R.count), 0), BigInteger)
 
 
 def _pct(part, whole) -> float | None:
@@ -150,17 +151,9 @@ def alignment(db: Session, f: Filter) -> list[dict]:
     return [{"label": l, "value": int(v)} for l, v in zip(labels, row, strict=True)]
 
 
-def auth_results(db: Session, f: Filter) -> dict:
-    """Raw (unaligned) SPF / DKIM result distribution."""
-    spf, dkim = defaultdict(int), defaultdict(int)
-    for spf_res, dkim_res, cnt in db.execute(f.where(select(R.spf_results, R.dkim_results, R.count))):
-        spf[(spf_res or [{}])[0].get("result") or "none"] += cnt
-        dkim[(dkim_res or [{}])[0].get("result") or "none"] += cnt
-    return {"spf": dict(spf), "dkim": dict(dkim)}
-
-
 def senders(db: Session, f: Filter, limit: int = 50) -> list[dict]:
-    label = func.coalesce(R.sender, R.base_domain, "Neznámy")
+    # no literal inside the grouped expression: server-side bound params break GROUP BY on PostgreSQL
+    label = func.coalesce(R.sender, R.base_domain)
     rows = db.execute(
         f.where(select(label, R.category, TOTAL, _sum_if(R.dmarc_pass), _sum_if(R.spf_aligned),
                        _sum_if(R.dkim_aligned), func.count(distinct(R.source_ip))))
@@ -168,6 +161,7 @@ def senders(db: Session, f: Filter, limit: int = 50) -> list[dict]:
     ).all()
     agg: dict = {}
     for name, cat, total, passed, spf, dkim, ips in rows:
+        name = name or "Neznámy"
         a = agg.setdefault(name, {"name": name, "total": 0, "pass": 0, "spf": 0, "dkim": 0, "ips": 0, "cats": defaultdict(int)})
         a["total"] += total
         a["pass"] += passed
@@ -196,10 +190,9 @@ def reporters(db: Session, f: Filter, limit: int = 15) -> list[dict]:
 
 def countries(db: Session, f: Filter) -> list[dict]:
     rows = db.execute(
-        f.where(select(func.coalesce(R.country, "Neznáma"), TOTAL, _sum_if(R.dmarc_pass)))
-        .group_by(func.coalesce(R.country, "Neznáma")).order_by(TOTAL.desc())
+        f.where(select(R.country, TOTAL, _sum_if(R.dmarc_pass))).group_by(R.country).order_by(TOTAL.desc())
     ).all()
-    return [{"name": n, "total": int(t), "fail": int(t - p)} for n, t, p in rows]
+    return [{"name": n or "Neznáma", "total": int(t), "fail": int(t - p)} for n, t, p in rows]
 
 
 def sources(db: Session, f: Filter, category: str | None = None, q: str | None = None, limit: int = 500) -> list[dict]:
@@ -232,36 +225,41 @@ def sources(db: Session, f: Filter, category: str | None = None, q: str | None =
 
 def failure_details(db: Session, f: Filter, limit: int = 15) -> list[dict]:
     """Most frequent DKIM/SPF failure combinations among failing traffic."""
-    agg: dict = defaultdict(int)
-    stmt = f.where(select(R.dkim_results, R.spf_results, R.count, R.sender).where(R.dmarc_pass.is_(False)))
-    for dkim, spf, cnt, sender in db.execute(stmt):
-        d = (dkim or [{}])[0]
-        s = (spf or [{}])[0]
-        key = (sender or "Neznámy", f"{d.get('domain') or '-'} ({d.get('result') or 'none'})",
-               f"{s.get('domain') or '-'} ({s.get('result') or 'none'})")
-        agg[key] += cnt
-    top = sorted(agg.items(), key=lambda kv: kv[1], reverse=True)[:limit]
-    return [{"sender": k[0], "dkim": k[1], "spf": k[2], "count": v} for k, v in top]
-
-
-def overrides(db: Session, f: Filter) -> list[dict]:
-    agg: dict = defaultdict(int)
-    for reasons, cnt in db.execute(f.where(select(R.reasons, R.count)).where(R.reasons.is_not(None))):
-        for r in reasons or []:
-            agg[r.get("type") or "unknown"] += cnt
-    return [{"label": k, "value": v} for k, v in sorted(agg.items(), key=lambda kv: -kv[1])]
+    rows = db.execute(
+        f.where(select(R.sender, R.dkim_domain, R.dkim_result, R.spf_domain, R.spf_result, TOTAL))
+        .where(R.dmarc_pass.is_(False))
+        .group_by(R.sender, R.dkim_domain, R.dkim_result, R.spf_domain, R.spf_result)
+        .order_by(TOTAL.desc()).limit(limit)
+    ).all()
+    return [{"sender": sender or "Neznámy", "dkim": f"{dd or '-'} ({dr or 'none'})",
+             "spf": f"{sd or '-'} ({sr or 'none'})", "count": int(cnt)}
+            for sender, dd, dr, sd, sr, cnt in rows]
 
 
 # ---------------------------------------------------------------- domains
 
 
-def latest_policy(db: Session, domain: str) -> dict | None:
-    rep = db.scalar(
-        select(AggregateReport).where(AggregateReport.domain == domain).order_by(AggregateReport.date_end.desc()).limit(1)
+def latest_policies(db: Session, names: list[str] | None = None) -> dict[str, dict]:
+    """Policy published in the newest aggregate report, per domain (one query)."""
+    newest = select(AggregateReport.domain, func.max(AggregateReport.date_end).label("end")).group_by(AggregateReport.domain)
+    if names is not None:
+        newest = newest.where(AggregateReport.domain.in_(names))
+    newest = newest.subquery()
+    rows = db.scalars(
+        select(AggregateReport).join(
+            newest, (AggregateReport.domain == newest.c.domain) & (AggregateReport.date_end == newest.c.end)
+        )
     )
-    if not rep:
-        return None
-    return {"p": rep.p, "sp": rep.sp, "pct": rep.pct, "adkim": rep.adkim, "aspf": rep.aspf, "fo": rep.fo}
+    return {r.domain: {"p": r.p, "sp": r.sp, "pct": r.pct, "adkim": r.adkim, "aspf": r.aspf, "fo": r.fo} for r in rows}
+
+
+def latest_policy(db: Session, domain: str) -> dict | None:
+    return latest_policies(db, [domain]).get(domain)
+
+
+def _policy_of(dom: Domain, published: dict) -> str:
+    tags = ((dom.dns or {}).get("dmarc") or {}).get("tags") or {}
+    return (tags.get("p") or (published.get(dom.name) or {}).get("p") or "").lower()
 
 
 def domains_overview(db: Session, f: Filter) -> list[dict]:
@@ -279,6 +277,7 @@ def domains_overview(db: Session, f: Filter) -> list[dict]:
     for dom, day, total in spark_rows:
         sparks[dom][day.isoformat()] = int(total)
     days = [(f.start + timedelta(days=i)).isoformat() for i in range((f.end - f.start).days + 1)]
+    published = latest_policies(db)
     out = []
     for dom in db.scalars(select(Domain).order_by(Domain.name)):
         s = stats.get(dom.name)
@@ -291,7 +290,7 @@ def domains_overview(db: Session, f: Filter) -> list[dict]:
             "threat": threat,
             "forwarded": fwd,
             "ips": ips,
-            "policy": (dmarc.get("tags") or {}).get("p") or (latest_policy(db, dom.name) or {}).get("p"),
+            "policy": _policy_of(dom, published) or None,
             "has_dmarc": bool(dmarc.get("record")),
             "score": dom.dns_score,
             "grade": (dom.dns or {}).get("grade"),
@@ -306,77 +305,85 @@ def domains_overview(db: Session, f: Filter) -> list[dict]:
 
 
 def new_sources(db: Session, f: Filter, days: int = 7) -> list[dict]:
-    """Failing source IPs first seen within the last `days` of the period."""
+    """Failing source IPs never seen (for the domain filter) before the last `days` of the period."""
     cutoff = f.end - timedelta(days=days - 1)
-    stmt = select(R.source_ip, func.min(R.day), TOTAL, func.max(R.sender), func.max(R.ptr), func.max(R.domain)).where(
-        R.dmarc_pass.is_(False)
-    )
+    older = aliased(R)
+    seen_before = select(older.id).where(older.source_ip == R.source_ip, older.day < cutoff)
     if f.domain:
-        stmt = stmt.where(R.domain == f.domain)
-    rows = db.execute(stmt.group_by(R.source_ip).having(func.min(R.day) >= cutoff).order_by(TOTAL.desc()).limit(20)).all()
+        seen_before = seen_before.where(older.domain == f.domain)
+    stmt = Filter(cutoff, f.end, f.domain).where(
+        select(R.source_ip, func.min(R.day), TOTAL, func.max(R.sender), func.max(R.ptr), func.max(R.domain))
+    ).where(R.dmarc_pass.is_(False), ~exists(seen_before))
+    rows = db.execute(stmt.group_by(R.source_ip).order_by(TOTAL.desc()).limit(20)).all()
     return [{"ip": ip, "first": first.isoformat(), "total": int(t), "sender": s, "ptr": p, "domain": d}
             for ip, first, t, s, p, d in rows]
 
 
-def domain_readiness(db: Session, dom: Domain, f: Filter) -> dict:
-    """Assess whether a domain can safely move to a stricter DMARC policy."""
-    df = Filter(f.start, f.end, dom.name)
-    s = summary(db, df)
-    cats = {c["key"]: c["value"] for c in categories(db, df)}
-    legit = cats["compliant"] + cats["noncompliant"]
-    compliance = _pct(cats["compliant"], legit)
+def _fmt(n: int) -> str:
+    return f"{n:,}".replace(",", " ")
+
+
+def _assess(dom: Domain, policy: str, cats: dict, days_with_data: int) -> dict:
+    """Pure readiness logic – decides whether a domain can move to a stricter DMARC policy."""
+    total = sum(cats.values())
+    compliance = _pct(cats["compliant"], cats["compliant"] + cats["noncompliant"])
     dns = dom.dns or {}
-    tags = (dns.get("dmarc") or {}).get("tags") or {}
-    policy = (tags.get("p") or (latest_policy(db, dom.name) or {}).get("p") or "").lower()
-    days_with_data = db.scalar(select(func.count(distinct(R.day))).where(R.domain == dom.name, R.day >= f.start)) or 0
     recs: list[dict] = []
-    level = "ok"
 
     if not (dns.get("dmarc") or {}).get("record"):
-        recs.append({"level": "error", "msg": f"Publikujte DMARC záznam: _dmarc.{dom.name} TXT \"v=DMARC1; p=none; rua=mailto:...\""})
-        level = "error"
-    if s["total"] == 0:
+        recs.append({"level": "error", "msg": f'Publikujte DMARC záznam: _dmarc.{dom.name} TXT "v=DMARC1; p=none; rua=mailto:..."'})
+    if total == 0:
         recs.append({"level": "info", "msg": "V zvolenom období nie sú žiadne agregované dáta."})
     elif policy == "none":
         if compliance is not None and compliance >= 98 and days_with_data >= 14:
             recs.append({"level": "ok", "msg": f"Legitímna pošta je v {compliance}% súlade – môžete prejsť na p=quarantine (napr. pct=25 → 100)."})
         else:
             recs.append({"level": "warn", "msg": "Pred sprísnením politiky opravte SPF/DKIM pri legitímnych odosielateľoch (pozri Nesúlad)."})
-            level = "warn"
         if cats["threat"]:
-            recs.append({"level": "warn", "msg": f"{cats['threat']:,} správ z neautorizovaných zdrojov bolo doručených, pretože politika je p=none.".replace(",", " ")})
-            level = "warn" if level == "ok" else level
+            recs.append({"level": "warn", "msg": f"{_fmt(cats['threat'])} správ z neautorizovaných zdrojov bolo doručených, pretože politika je p=none."})
     elif policy == "quarantine":
         if compliance is not None and compliance >= 99:
             recs.append({"level": "ok", "msg": f"Súlad {compliance}% – doména je pripravená na p=reject."})
         else:
             recs.append({"level": "warn", "msg": "Pred p=reject vyriešte nesúladných legitímnych odosielateľov."})
-            level = "warn"
     elif policy == "reject":
         recs.append({"level": "ok", "msg": "Doména má najprísnejšiu politiku p=reject."})
     if cats["noncompliant"]:
-        recs.append({"level": "warn", "msg": f"{cats['noncompliant']:,} správ od známych služieb neprešlo DMARC – nastavte pre ne DKIM so zarovnanou doménou.".replace(",", " ")})
-        level = "warn" if level == "ok" else level
+        recs.append({"level": "warn", "msg": f"{_fmt(cats['noncompliant'])} správ od známych služieb neprešlo DMARC – nastavte pre ne DKIM so zarovnanou doménou."})
     for key in ("spf", "dkim", "mta_sts"):
         for issue in (dns.get(key) or {}).get("issues", []):
             if issue["level"] == "error":
                 recs.append({"level": "error", "msg": f"{key.upper().replace('_', '-')}: {issue['msg']}"})
-                level = "error"
+    levels = {r["level"] for r in recs}
+    level = "error" if "error" in levels else "warn" if "warn" in levels else "ok"
     return {"policy": policy or None, "compliance": compliance, "days_with_data": days_with_data,
             "level": level, "recommendations": recs, "categories": cats}
 
 
-def insights(db: Session, f: Filter) -> list[dict]:
+def readiness_all(db: Session, f: Filter) -> dict[str, dict]:
+    """Readiness for every domain (or only f.domain) using a constant number of queries."""
+    doms = list(db.scalars(select(Domain).where(Domain.name == f.domain) if f.domain else select(Domain)))
+    cats: dict = defaultdict(lambda: dict.fromkeys(CATEGORIES, 0))
+    for name, cat, total in db.execute(f.where(select(R.domain, R.category, TOTAL)).group_by(R.domain, R.category)):
+        cats[name][cat] = int(total)
+    days = dict(db.execute(f.where(select(R.domain, func.count(distinct(R.day)))).group_by(R.domain)).all())
+    published = latest_policies(db, [d.name for d in doms] if f.domain else None)
+    return {d.name: _assess(d, _policy_of(d, published), cats[d.name], int(days.get(d.name, 0))) for d in doms}
+
+
+def domain_readiness(db: Session, dom: Domain, f: Filter) -> dict:
+    return readiness_all(db, Filter(f.start, f.end, dom.name))[dom.name]
+
+
+def insights(db: Session, f: Filter, limit: int | None = 30) -> list[dict]:
     out = []
-    doms = db.scalars(select(Domain).where(Domain.name == f.domain)) if f.domain else db.scalars(select(Domain))
-    for dom in doms:
-        r = domain_readiness(db, dom, f)
+    for name, r in readiness_all(db, f).items():
         for rec in r["recommendations"]:
             if rec["level"] in ("error", "warn") or "pripravená" in rec["msg"] or "môžete prejsť" in rec["msg"]:
-                out.append({**rec, "domain": dom.name})
+                out.append({**rec, "domain": name})
     order = {"error": 0, "warn": 1, "ok": 2, "info": 3}
     out.sort(key=lambda r: order.get(r["level"], 9))
-    return out[:30]
+    return out[:limit]
 
 
 def tls_summary(db: Session, f: Filter) -> dict:

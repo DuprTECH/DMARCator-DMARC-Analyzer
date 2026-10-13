@@ -1,21 +1,26 @@
-# Dokumentácia DMARCula
+# DMARCula documentation
 
-| Dokument | Pre koho | Obsah |
+| Document | Audience | Contents |
 |---|---|---|
-| [Inštalácia a prevádzka](instalacia.md) | správca servera | Docker, lokálna inštalácia, reverzný proxy, zálohovanie, aktualizácia, riešenie problémov |
-| [Konfigurácia](konfiguracia.md) | správca servera | všetky premenné prostredia s popisom a predvolenými hodnotami |
-| [Prihlasovanie a roly](prihlasovanie.md) | správca identít | lokálne účty, LDAP / Active Directory, SSO cez Entra ID a iné OIDC, mapovanie rolí |
-| [Microsoft 365 a príjem reportov](microsoft-365.md) | správca M365 / DNS | registrácia aplikácie, obmedzenie na jednu schránku, IMAP OAuth2, DNS záznamy |
-| [Používateľská príručka](pouzivatelska-prirucka.md) | bezpečnostný / mailový tím | dashboard, kategórie prevádzky, DNS skóre, postup od p=none k p=reject |
-| [Architektúra](architektura.md) | vývojár | komponenty, tok dát, dátový model, bezpečnosť, rozšírenie |
+| [Installation](installation.md) | server admin | step-by-step install on Debian/Ubuntu, RHEL/Rocky/Alma and other distros, MariaDB, nginx/Apache, hosting panels, Docker, updates, backups, troubleshooting |
+| [Configuration](configuration.md) | server admin | every environment variable, database URLs, mailbox settings |
+| [Authentication](authentication.md) | identity admin | local accounts, LDAP / Active Directory, SSO with Entra ID and other OIDC providers, roles |
+| [Microsoft 365 setup](microsoft-365.md) | M365 / DNS admin | report mailbox, app registration, scoping to one mailbox, IMAP OAuth2, DNS records, DKIM |
+| [User guide](user-guide.md) | security / mail team | dashboard, traffic categories, DNS score, policy readiness, rollout from `p=none` to `p=reject` |
+| [Architecture](architecture.md) | developers | components, data flow, data model, performance, security, HTTP interface, extending |
 
-## Čo je DMARC v skratke
+## DMARC in one minute
 
-**DMARC** (RFC 7489) hovorí prijímajúcim serverom, čo robiť so správou, ktorá sa vydáva za vašu doménu, ale neprešla overením:
+**DMARC** (RFC 7489) tells receiving mail servers what to do with mail that claims to come
+from your domain but fails authentication:
 
-- **SPF** overuje, či IP adresa odosielateľa smie posielať poštu za doménu z obálky (MAIL FROM).
-- **DKIM** overuje kryptografický podpis správy.
-- **Zarovnanie (alignment)** znamená, že doména z SPF alebo DKIM sa zhoduje s doménou v hlavičke `From:`, ktorú vidí používateľ. DMARC prejde, ak je zarovnané a úspešné **aspoň jedno** z nich.
-- **Politika** `p=none` iba monitoruje, `p=quarantine` posiela do spamu, `p=reject` správu odmietne.
+- **SPF** checks that the sending IP may send for the envelope (MAIL FROM) domain.
+- **DKIM** checks a cryptographic signature on the message.
+- **Alignment** means the SPF or DKIM domain matches the domain in the visible `From:` header.
+  DMARC passes when **at least one** of them passes *and* is aligned.
+- **Policy** `p=none` only monitors, `p=quarantine` sends failing mail to spam, and `p=reject`
+  refuses it.
 
-Príjemcovia (Google, Microsoft, Yahoo…) posielajú denné **agregované reporty** na adresu z `rua=`. DMARCula ich sťahuje, vyhodnocuje a ukazuje, kto posiela poštu za vaše domény a či ste pripravení na prísnejšiu politiku.
+Receivers (Google, Microsoft, Yahoo, …) send daily **aggregate reports** to the `rua=` address.
+DMARCula collects and analyzes them. It shows who sends mail as your domains and when each
+domain is ready for a stricter policy.

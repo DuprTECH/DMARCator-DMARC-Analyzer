@@ -5,6 +5,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from ..analysis.cache import invalidate
 from ..config import get_settings
 from ..db import get_db
 from ..ingest.parser import extract_from_file
@@ -221,5 +222,6 @@ def domain_delete(did: int, request: Request, db: Session = Depends(get_db)):
         db.execute(delete(TlsReport).where(TlsReport.policy_domain == dom.name))
         db.delete(dom)
         db.commit()
+        invalidate()
         flash(request, f"Doména {dom.name} a všetky jej reporty boli odstránené.")
     return RedirectResponse("/domains", 303)

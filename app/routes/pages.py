@@ -3,10 +3,11 @@ import io
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse, StreamingResponse
-from sqlalchemy import func, select
+from sqlalchemy import BigInteger, cast, func, select
 from sqlalchemy.orm import Session
 
 from ..analysis import dns_checks, stats
+from ..analysis.cache import cached, invalidate
 from ..analysis.stats import Filter
 from ..db import get_db
 from ..ingest.service import check_and_save
@@ -34,26 +35,36 @@ def _ctx(db: Session, f: Filter, **kw) -> dict:
 
 @router.get("/")
 def dashboard(request: Request, f: Filter = Depends(flt), db: Session = Depends(get_db)):
-    data = {
-        "summary": stats.summary(db, f),
-        "timeline": stats.timeline(db, f),
-        "categories": stats.categories(db, f),
-        "dispositions": stats.dispositions(db, f),
-        "alignment": stats.alignment(db, f),
-        "senders": stats.senders(db, f, 12),
-        "reporters": stats.reporters(db, f, 10),
-        "countries": stats.countries(db, f)[:12],
-        "auth": stats.auth_results(db, f),
-        "overrides": stats.overrides(db, f),
-    }
-    return render(request, "dashboard.html", _ctx(
-        db, f, data=data, domains=stats.domains_overview(db, f)[:12], insights=stats.insights(db, f)[:10],
-        new_sources=stats.new_sources(db, f)[:8]))
+    def compute():
+        data = {
+            "summary": stats.summary(db, f),
+            "timeline": stats.timeline(db, f),
+            "categories": stats.categories(db, f),
+            "dispositions": stats.dispositions(db, f),
+            "alignment": stats.alignment(db, f),
+            "senders": stats.senders(db, f, 12),
+            "reporters": stats.reporters(db, f, 10),
+            "countries": stats.countries(db, f)[:12],
+        }
+        insights = stats.insights(db, f, limit=None)
+        return {"data": data, "domains": stats.domains_overview(db, f)[:12], "insights": insights[:10],
+                "insights_total": len(insights), "new_sources": stats.new_sources(db, f)[:8]}
+
+    return render(request, "dashboard.html", _ctx(db, f, **cached(("dashboard", f.start, f.end, f.domain), compute)))
 
 
 @router.get("/domains")
 def domains(request: Request, f: Filter = Depends(flt), db: Session = Depends(get_db)):
-    return render(request, "domains.html", _ctx(db, f, domains=stats.domains_overview(db, f)))
+    def compute():
+        overview = stats.domains_overview(db, f)
+        readiness = stats.readiness_all(db, Filter(f.start, f.end))
+        for d in overview:
+            r = readiness.get(d["name"], {})
+            d["level"], d["compliance"] = r.get("level"), r.get("compliance")
+            d["issues"] = [x["msg"] for x in r.get("recommendations", []) if x["level"] in ("error", "warn")]
+        return overview
+
+    return render(request, "domains.html", _ctx(db, f, domains=cached(("domains", f.start, f.end), compute)))
 
 
 @router.get("/domains/{name}")
@@ -82,6 +93,7 @@ def domain_check(name: str, request: Request, db: Session = Depends(get_db)):
         raise HTTPException(404)
     check_and_save(db, dom)
     db.commit()
+    invalidate()
     flash(request, f"DNS kontrola {dom.name} dokončená – skóre {dom.dns_score}/100.")
     return RedirectResponse(f"/domains/{dom.name}", 303)
 
@@ -89,9 +101,12 @@ def domain_check(name: str, request: Request, db: Session = Depends(get_db)):
 @router.get("/sources")
 def sources(request: Request, f: Filter = Depends(flt), category: str | None = None, q: str | None = None,
             db: Session = Depends(get_db)):
-    return render(request, "sources.html", _ctx(
-        db, f, senders=stats.senders(db, f, 100), rows=stats.sources(db, f, category or None, q),
-        category=category, q=q or "", countries=stats.countries(db, f), failures=stats.failure_details(db, f, 20)))
+    def compute():
+        return {"senders": stats.senders(db, f, 100), "rows": stats.sources(db, f, category or None, q),
+                "failures": stats.failure_details(db, f, 20)}
+
+    key = ("sources", f.start, f.end, f.domain, category, q)
+    return render(request, "sources.html", _ctx(db, f, category=category, q=q or "", **cached(key, compute)))
 
 
 @router.get("/sources.csv")
@@ -120,7 +135,7 @@ def reports(request: Request, f: Filter = Depends(flt), page: int = Query(1, ge=
     total = db.scalar(select(func.count()).select_from(q.subquery()))
     items = db.scalars(q.order_by(AggregateReport.date_begin.desc()).offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE)).all()
     pass_counts = dict(db.execute(
-        select(AggregateRecord.report_id, func.sum(AggregateRecord.count))
+        select(AggregateRecord.report_id, cast(func.sum(AggregateRecord.count), BigInteger))
         .where(AggregateRecord.report_id.in_([r.id for r in items]), AggregateRecord.dmarc_pass.is_(True))
         .group_by(AggregateRecord.report_id)).all()) if items else {}
     return render(request, "reports.html", _ctx(

@@ -2,7 +2,9 @@ import os
 import re
 import tempfile
 
-os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(tempfile.mkdtemp(), "test.db").replace("\\", "/")
+# TEST_DATABASE_URL lets the suite run against an empty MariaDB / PostgreSQL database
+os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL") or (
+    "sqlite:///" + os.path.join(tempfile.mkdtemp(), "test.db").replace("\\", "/"))
 os.environ["ADMIN_PASSWORD"] = "Sup3rSecret!!"
 os.environ["RESOLVE_PTR"] = "false"
 os.environ["POLL_INTERVAL_MINUTES"] = "999"

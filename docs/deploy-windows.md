@@ -99,6 +99,13 @@ $lines = (Get-Content .env.example) `
 .\.venv\Scripts\python.exe -c "from app.db import init_db; init_db(); print('database OK')"
 ```
 
+`.env` uses the public resolvers `DNS_SERVERS=1.1.1.1,8.8.8.8`, because the internal Active Directory DNS
+usually doesn't contain your public SPF, DKIM and DMARC records. Check that the server may query them:
+
+```powershell
+Resolve-DnsName -Server 1.1.1.1 -Type TXT _dmarc.example.com      # your real domain – must show v=DMARC1…
+```
+
 Restrict the file to administrators and the service (LocalSystem):
 
 ```powershell

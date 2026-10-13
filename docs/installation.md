@@ -149,7 +149,8 @@ sudo tee /etc/apache2/sites-available/dmarcula.conf >/dev/null <<'EOF'
     Protocols h2 http/1.1
 
     SSLEngine on
-    SSLCertificateFile    /etc/ssl/dmarcula/fullchain.pem    # certificate + intermediates
+    # certificate incl. intermediates, and its private key
+    SSLCertificateFile    /etc/ssl/dmarcula/fullchain.pem
     SSLCertificateKeyFile /etc/ssl/dmarcula/privkey.pem
 
     ProxyPreserveHost On
@@ -159,7 +160,8 @@ sudo tee /etc/apache2/sites-available/dmarcula.conf >/dev/null <<'EOF'
     RequestHeader set X-Forwarded-Proto "https"
 
     Header always set Strict-Transport-Security "max-age=31536000"
-    LimitRequestBody 62914560          # 60 MB – manual report uploads
+    # 60 MB – manual report uploads
+    LimitRequestBody 62914560
 
     ErrorLog  ${APACHE_LOG_DIR}/dmarcula-error.log
     CustomLog ${APACHE_LOG_DIR}/dmarcula-access.log combined
@@ -233,8 +235,14 @@ The configuration is the same as above, but:
 
 ### Common Apache problems
 
+Apache allows comments only on their own line. `Directive value   # comment` is a syntax error.
+
 | Symptom | Fix |
 |---|---|
+| `500 Internal Server Error` page from Apache, log shows `AH01144: No protocol handler was valid for the URL` | `mod_proxy_http` is missing: `a2enmod proxy_http && systemctl restart apache2` (a newly enabled module needs a **restart**, not a reload) |
+| After enabling the site, **every** HTTPS site shows an SSL error, or `http://dmarc…` lands on another site | another vhost is bound to a host name or IP (`<VirtualHost syslog.example.com:443>`, `<VirtualHost 10.0.0.5:80>`). Apache resolves it to the server IP, and IP-bound vhosts take precedence over all `*:80` / `*:443` vhosts. Use `<VirtualHost *:80>` / `<VirtualHost *:443>` everywhere and check with `apache2ctl -S`. |
+| `SSLCertificateFile: file … does not exist or is empty` | a vhost references a missing certificate. `configtest` fails and **no** change gets loaded until it's fixed |
+| A `*:443` vhost without `SSLEngine on` | that site is served unencrypted on port 443 (browser: `ERR_SSL_PROTOCOL_ERROR`). Every `*:443` vhost needs `SSLEngine on` and a certificate |
 | `503 Service Unavailable` | The app isn't running: `systemctl status dmarcula`. On EL, also run `setsebool -P httpd_can_network_connect 1`. |
 | `Invalid command 'ProxyPass'` | `sudo a2enmod proxy proxy_http` |
 | `Invalid command 'RequestHeader'` / `'Header'` | `sudo a2enmod headers` |
@@ -336,7 +344,8 @@ Backups, data retention, monitoring and logs: see [Operations](operations.md).
 | `SyntaxError` / `TypeError: unsupported operand type(s) for \|` at startup | Python is older than 3.10. |
 | nginx `502 Bad Gateway` | Service not running (`systemctl status dmarcula`). On EL, run `setsebool -P httpd_can_network_connect 1`. |
 | Cannot log in after the first start | `ADMIN_PASSWORD` was empty on the first start. Set it, drop and recreate the (empty) database, and restart. |
-| DNS checks are slow | The first system resolver doesn't answer. Set `DNS_SERVERS=1.1.1.1,8.8.8.8` or use internal resolvers. |
+| DNS checks are slow | The first system resolver doesn't answer. Set `DNS_SERVERS=1.1.1.1,8.8.8.8`. |
+| Domain shows **no SPF / DMARC / DKIM** although they exist (grade F), or the message *"Reporty … potvrdzujú verejný DMARC záznam … split-horizon"* | The server uses internal DNS servers with an internal copy of your zone (typical with Active Directory DNS), which doesn't contain the public TXT records. Set `DNS_SERVERS=1.1.1.1,8.8.8.8` in `.env`, run `systemctl restart dmarcula`, then *Domény → Skontrolovať DNS*. Check that the server may query external DNS: `dig @1.1.1.1 example.com TXT +short`. |
 | SSO: "SSO prihlásenie zlyhalo" | The redirect URI must be exactly `BASE_URL` + `/auth/oidc/callback`. |
 | Mailbox errors | See [Microsoft 365 setup → troubleshooting](microsoft-365.md#troubleshooting). Details are in *Administrácia → Poštové schránky → Log*. |
 | No charts in an offline network | Download `https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js` to `app/static/js/` and point the `<script>` in `app/templates/base.html` to `/static/js/echarts.min.js`. The world map stays unavailable offline. |

@@ -19,8 +19,16 @@ COMMON_DKIM_SELECTORS = [
 ]
 
 
+class DnsLookupError(Exception):
+    """The DNS server did not answer (timeout / SERVFAIL) – absence of a record cannot be concluded."""
+
+
+def configured_servers() -> list[str]:
+    return [x.strip() for x in get_settings().dns_servers.split(",") if x.strip()]
+
+
 def _resolver() -> dns.resolver.Resolver:
-    servers = [x.strip() for x in get_settings().dns_servers.split(",") if x.strip()]
+    servers = configured_servers()
     r = dns.resolver.Resolver(configure=not servers)
     if servers:
         r.nameservers = servers
@@ -30,14 +38,20 @@ def _resolver() -> dns.resolver.Resolver:
 
 
 def txt(name: str) -> list[str] | None:
-    """Return TXT strings, [] when the name exists without TXT, None on NXDOMAIN."""
+    """Return TXT strings, [] when the name exists without TXT, None on NXDOMAIN.
+
+    Raises DnsLookupError when the resolver fails, so a broken resolver is never
+    reported as a missing record.
+    """
     try:
         ans = _resolver().resolve(name, "TXT")
         return [b"".join(r.strings).decode("utf-8", errors="replace") for r in ans]
     except dns.resolver.NXDOMAIN:
         return None
-    except (dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout):
+    except dns.resolver.NoAnswer:
         return []
+    except (dns.resolver.NoNameservers, dns.exception.Timeout) as exc:
+        raise DnsLookupError(f"{name}: {exc.__class__.__name__}") from exc
 
 
 def _issue(level: str, msg: str) -> dict:
@@ -203,8 +217,17 @@ def _key_bits(p: str, k: str) -> int | None:
 def check_dkim(domain: str, selectors: list[str]) -> dict:
     found = []
     tried = list(dict.fromkeys([s for s in selectors if s] + COMMON_DKIM_SELECTORS))
+    def lookup(sel):
+        try:
+            return txt(f"{sel}._domainkey.{domain}")
+        except DnsLookupError:
+            return False
+
     with ThreadPoolExecutor(max_workers=10) as pool:
-        answers = list(pool.map(lambda sel: txt(f"{sel}._domainkey.{domain}"), tried))
+        answers = list(pool.map(lookup, tried))
+    if all(a is False for a in answers):
+        raise DnsLookupError(f"DKIM lookups for {domain} failed")
+    answers = [a or [] for a in answers]
     for sel, records in zip(tried, answers, strict=True):
         rec = next((r for r in (records or []) if "p=" in r), None)
         if not rec:
@@ -244,8 +267,10 @@ def check_mx(domain: str) -> dict:
         ans = _resolver().resolve(domain, "MX")
         hosts = sorted(({"pref": r.preference, "host": str(r.exchange).rstrip(".").lower()} for r in ans),
                        key=lambda h: h["pref"])
-    except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout):
+    except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
         hosts = []
+    except (dns.resolver.NoNameservers, dns.exception.Timeout) as exc:
+        raise DnsLookupError(f"{domain} MX: {exc.__class__.__name__}") from exc
     issues = []
     if not hosts:
         issues.append(_issue("info", "Doména nemá MX – neprijíma poštu (zvážte null MX a p=reject)."))
@@ -325,7 +350,9 @@ def check_bimi(domain: str, dmarc: dict) -> dict:
 # ------------------------------------------------------------------ score
 
 
-def score(result: dict) -> int:
+def score(result: dict) -> int | None:
+    if any(result[k]["status"] == "unknown" for k in ("dmarc", "spf", "dkim")):
+        return None
     s = 0
     d = result["dmarc"]
     if d["record"]:
@@ -356,20 +383,41 @@ def grade(value: int | None) -> str:
     return "A" if value >= 90 else "B" if value >= 75 else "C" if value >= 60 else "D" if value >= 40 else "F"
 
 
+UNKNOWN_SHAPES = {
+    "dmarc": {"record": None, "tags": {}, "external_destinations": []},
+    "spf": {"record": None, "lookups": 0, "includes": []},
+    "dkim": {"selectors": []},
+    "mx": {"hosts": [], "provider": None},
+    "mta_sts": {"record": None, "policy": None},
+    "tls_rpt": {"record": None},
+    "bimi": {"record": None},
+}
+
+
+def _safe(kind: str, fn, *args) -> dict:
+    """Run one check; a resolver failure yields an explicit 'unknown' result instead of 'missing'."""
+    try:
+        return fn(*args)
+    except DnsLookupError as exc:
+        return {**UNKNOWN_SHAPES[kind], "status": "unknown", "issues": [_issue(
+            "warn", f"DNS server neodpovedal ({exc}) – výsledok sa nedá určiť. Skontrolujte DNS_SERVERS.")]}
+
+
 def check_domain(domain: str, dkim_selectors: list[str] | None = None) -> dict:
     domain = domain.lower().strip().rstrip(".")
     with ThreadPoolExecutor(max_workers=5) as pool:
-        f_dmarc = pool.submit(check_dmarc, domain)
-        f_spf = pool.submit(check_spf, domain)
-        f_dkim = pool.submit(check_dkim, domain, dkim_selectors or [])
-        f_mx = pool.submit(check_mx, domain)
-        f_tls = pool.submit(check_tls_rpt, domain)
+        f_dmarc = pool.submit(_safe, "dmarc", check_dmarc, domain)
+        f_spf = pool.submit(_safe, "spf", check_spf, domain)
+        f_dkim = pool.submit(_safe, "dkim", check_dkim, domain, dkim_selectors or [])
+        f_mx = pool.submit(_safe, "mx", check_mx, domain)
+        f_tls = pool.submit(_safe, "tls_rpt", check_tls_rpt, domain)
         dmarc, mx = f_dmarc.result(), f_mx.result()
-        f_sts = pool.submit(check_mta_sts, domain, [h["host"] for h in mx["hosts"]])
-        f_bimi = pool.submit(check_bimi, domain, dmarc)
+        f_sts = pool.submit(_safe, "mta_sts", check_mta_sts, domain, [h["host"] for h in mx["hosts"]])
+        f_bimi = pool.submit(_safe, "bimi", check_bimi, domain, dmarc)
         result = {
             "domain": domain,
             "checked_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "resolvers": configured_servers() or ["system"],
             "dmarc": dmarc,
             "spf": f_spf.result(),
             "dkim": f_dkim.result(),

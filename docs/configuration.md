@@ -84,7 +84,7 @@ Notes:
 | `POLL_INTERVAL_MINUTES` | `15` | How often all enabled mailboxes are polled by the built-in scheduler. |
 | `DNS_REFRESH_HOURS` | `24` | How often every domain's DNS posture is re-checked (8 domains in parallel). New domains are checked right after their first report. |
 | `RESOLVE_PTR` | `true` | Reverse DNS for source IPs. Needed to recognise sending services. |
-| `DNS_SERVERS` | – | Comma-separated resolvers. Empty means the system resolvers. |
+| `DNS_SERVERS` | – (`.env.example`: `1.1.1.1,8.8.8.8`) | Comma-separated resolvers for DNS checks and PTR lookups. Empty means the system resolvers. **Use public resolvers** when the server's own DNS has an internal copy of your zones (split-horizon / Active Directory DNS). Such a server answers "no TXT record" and every domain looks like it has no SPF, DKIM or DMARC. The app flags this when reports prove that a record exists. A failed lookup (timeout) is shown as *Nezistené*, never as "missing". |
 | `GEOIP_COUNTRY_DB` | – | Path to MaxMind `GeoLite2-Country.mmdb`. |
 | `GEOIP_ASN_DB` | – | Path to MaxMind `GeoLite2-ASN.mmdb`. |
 | `MAX_ATTACHMENT_MB` | `50` | Maximum size of one message or uploaded file. Extracted archives have a fixed 200 MB limit. |

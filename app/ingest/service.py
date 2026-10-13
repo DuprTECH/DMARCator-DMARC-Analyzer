@@ -253,8 +253,37 @@ def selectors_for(db: Session, domain: str) -> list[str]:
     return sorted(found, key=found.get, reverse=True)[:10]
 
 
+def report_evidence(db: Session, domain: str, result: dict) -> dict:
+    """Receivers only send aggregate reports when a public DMARC record exists. If reports keep
+    arriving but the resolver sees no record, the resolver is wrong (typically split-horizon DNS)."""
+    dmarc = result["dmarc"]
+    if dmarc.get("record") or dmarc.get("status") == "unknown":
+        return result
+    recent = db.scalar(
+        select(AggregateReport.p).where(AggregateReport.domain == domain,
+                                        AggregateReport.date_end >= utcnow() - timedelta(days=14))
+        .order_by(AggregateReport.date_end.desc()).limit(1)
+    )
+    if recent is None:
+        return result
+    servers = ", ".join(result.get("resolvers") or ["system"])
+    note = dns_checks._issue(
+        "error",
+        f"Reporty z posledných 14 dní potvrdzujú verejný DMARC záznam (p={recent}), ale DNS server ({servers}) "
+        "ho nevidí. Server pravdepodobne používa internú DNS zónu (split-horizon) – nastavte "
+        "DNS_SERVERS=1.1.1.1,8.8.8.8 v .env a reštartujte aplikáciu.",
+    )
+    for key in ("dmarc", "spf", "dkim"):
+        if not result[key].get("record") and not result[key].get("selectors"):
+            result[key]["status"] = "unknown"
+    result["dmarc"]["issues"] = [note] + [i for i in dmarc["issues"] if i["level"] != "error"]
+    result["score"] = dns_checks.score(result)
+    result["grade"] = dns_checks.grade(result["score"])
+    return result
+
+
 def check_and_save(db: Session, dom: Domain) -> dict:
-    result = dns_checks.check_domain(dom.name, selectors_for(db, dom.name))
+    result = report_evidence(db, dom.name, dns_checks.check_domain(dom.name, selectors_for(db, dom.name)))
     dom.dns, dom.dns_score, dom.dns_checked_at = result, result["score"], utcnow()
     return result
 
@@ -284,6 +313,7 @@ def refresh_dns(only_missing: bool = False):
                     with session_scope() as db:
                         dom = db.get(Domain, did)
                         if dom:
+                            result = report_evidence(db, dom.name, result)
                             dom.dns, dom.dns_score, dom.dns_checked_at = result, result["score"], utcnow()
         invalidate()
         log.info("DNS check finished for %d domains", len(todo))

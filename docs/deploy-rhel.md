@@ -41,7 +41,7 @@ echo "Database password: $DB_PASS"           # write it down
 ## Step 1 – install packages
 
 ```bash
-dnf install -y git openssh-clients curl openssl cronie mariadb-server mariadb httpd mod_ssl
+dnf install -y git openssh-clients curl openssl bind-utils cronie mariadb-server mariadb httpd mod_ssl
 dnf install -y python3.12 python3.12-pip || dnf install -y python3.11 python3.11-pip
 export PY="$(command -v python3.12 || command -v python3.11)"
 $PY --version                                # 3.11 or 3.12
@@ -112,6 +112,17 @@ echo "Web login: admin / $ADMIN_PASSWORD"      # write it down
 
 runuser -u "$APP_USER" -- .venv/bin/python -c "from app.db import init_db; init_db(); print('database OK')"
 ```
+
+Check that the server sees your **public** DNS records. `DNS_SERVERS=1.1.1.1,8.8.8.8` from
+`.env.example` is used by the app; this also tests that outbound DNS is allowed:
+
+```bash
+dig +short @1.1.1.1 TXT _dmarc.example.com            # your real domain – must print v=DMARC1…
+grep ^DNS_SERVERS .env
+```
+
+If outbound DNS to the internet is blocked, set `DNS_SERVERS` to an internal resolver that
+answers with the **public** view of your domains (not the Active Directory zone).
 
 ## Step 5 – run as a service
 

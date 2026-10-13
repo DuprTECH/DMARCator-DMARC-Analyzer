@@ -54,7 +54,7 @@
 {%- endmacro %}
 
 {% macro status_badge(s) -%}
-{% set labels = {'ok': 'OK', 'warn': 'Upozornenie', 'error': 'Chyba', 'missing': 'Nenastavené', 'info': 'Info'} %}
+{% set labels = {'ok': 'OK', 'warn': 'Upozornenie', 'error': 'Chyba', 'missing': 'Nenastavené', 'info': 'Info', 'unknown': 'Nezistené'} %}
 <span class="badge {{ s }}">{{ labels.get(s, s) }}</span>
 {%- endmacro %}
 

@@ -330,7 +330,10 @@ def _assess(dom: Domain, policy: str, cats: dict, days_with_data: int) -> dict:
     dns = dom.dns or {}
     recs: list[dict] = []
 
-    if not (dns.get("dmarc") or {}).get("record"):
+    if any((dns.get(k) or {}).get("status") == "unknown" for k in ("dmarc", "spf", "dkim")):
+        recs.append({"level": "error", "msg": "DNS záznamy domény sa nepodarilo overiť (DNS server neodpovedá alebo vidí "
+                                              "internú zónu) – nastavte DNS_SERVERS=1.1.1.1,8.8.8.8 v .env."})
+    elif not (dns.get("dmarc") or {}).get("record"):
         recs.append({"level": "error", "msg": f'Publikujte DMARC záznam: _dmarc.{dom.name} TXT "v=DMARC1; p=none; rua=mailto:..."'})
     if total == 0:
         recs.append({"level": "info", "msg": "V zvolenom období nie sú žiadne agregované dáta."})

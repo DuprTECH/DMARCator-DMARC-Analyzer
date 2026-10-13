@@ -48,7 +48,7 @@ echo "Database password: $DB_PASS"           # write it down
 
 ```bash
 apt update
-apt install -y python3 python3-venv python3-pip git openssh-client curl openssl cron \
+apt install -y python3 python3-venv python3-pip git openssh-client curl openssl dnsutils cron \
                mariadb-server mariadb-client \
                apache2 certbot python3-certbot-apache
 
@@ -133,6 +133,17 @@ runuser -u "$APP_USER" -- .venv/bin/python -c "from app.db import init_db; init_
 
 LDAP / SSO login can be added later in the same file (see [Authentication](authentication.md)).
 
+Check that the server sees your **public** DNS records. `DNS_SERVERS=1.1.1.1,8.8.8.8` from
+`.env.example` is used by the app; this also tests that outbound DNS is allowed:
+
+```bash
+dig +short @1.1.1.1 TXT _dmarc.example.com            # your real domain – must print v=DMARC1…
+grep ^DNS_SERVERS .env
+```
+
+If outbound DNS to the internet is blocked, set `DNS_SERVERS` to an internal resolver that
+answers with the **public** view of your domains (not the Active Directory zone).
+
 ## Step 5 – run as a service
 
 ```bash
@@ -160,7 +171,7 @@ sed -e "s|__HOST__|$DMARC_HOST|g" -e "s|__PORT__|8000|g" \
 
 a2ensite dmarcula
 apache2ctl configtest                            # "Syntax OK"
-systemctl reload apache2
+systemctl restart apache2                        # restart (not reload) loads the new modules
 
 # firewall (only if ufw is active)
 ufw status | grep -q active && ufw allow 'Apache Full'

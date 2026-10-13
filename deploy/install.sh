@@ -311,7 +311,7 @@ case "$WEB:$FAMILY" in
         a2ensite -q dmarcula >/dev/null
         systemctl enable --now apache2 >/dev/null 2>&1
         apache2ctl configtest || die "Apache configuration test failed."
-        systemctl reload apache2 ;;
+        systemctl restart apache2 ;;
     apache:rhel)
         step "Apache"
         render apache > /etc/httpd/conf.d/dmarcula.conf
@@ -325,7 +325,7 @@ case "$WEB:$FAMILY" in
         render apache > /etc/apache2/vhosts.d/dmarcula.conf
         systemctl enable --now apache2 >/dev/null 2>&1
         apachectl configtest || die "Apache configuration test failed."
-        systemctl reload apache2 ;;
+        systemctl restart apache2 ;;
     nginx:debian)
         step "nginx"
         render nginx > /etc/nginx/sites-available/dmarcula

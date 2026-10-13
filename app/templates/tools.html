@@ -16,7 +16,7 @@
 {% if result %}
 <div class="card mt" style="display:flex;gap:18px;align-items:center">
   <span class="grade big {{ result.grade }}">{{ result.grade }}</span>
-  <div><div class="hint">Skóre pre</div><div style="font-size:20px;font-weight:650">{{ result.domain }} – {{ result.score }}/100</div></div>
+  <div><div class="hint">Skóre pre</div><div style="font-size:20px;font-weight:650">{{ result.domain }} – {{ result.score if result.score is not none else '–' }}/100</div></div>
 </div>
 <div class="mt">{% with dns = result %}{% include "_dns_checks.html" %}{% endwith %}</div>
 {% endif %}

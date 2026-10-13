@@ -1,5 +1,6 @@
 {# expects `dns` – result of dns_checks.check_domain #}
 {% from "macros.html" import status_badge, issues %}
+<p class="hint" style="margin-top:0">Použité DNS servery: {{ (dns.resolvers or ['systémové'])|join(', ') }}</p>
 <div class="grid g-2">
   <div class="check">
     <div class="check-head"><strong>DMARC</strong>{{ status_badge(dns.dmarc.status) }}</div>

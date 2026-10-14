@@ -3,6 +3,12 @@
 All notable changes to DMARCula. Versions follow [semantic versioning](https://semver.org/).
 The running version is shown in the page footer, by `GET /healthz` and by `python -m app.manage version`.
 
+## 1.1.3 – 2026-10-14
+
+- Charts for periods longer than 120 days (e.g. 1 year) are aggregated per week – daily bars were
+  thinner than a pixel and appeared empty
+- Chart axis numbers use the UI language's number format
+
 ## 1.1.2 – 2026-10-14
 
 - License: PolyForm Internal Use 1.0.0 – free internal use in any organization; no resale,

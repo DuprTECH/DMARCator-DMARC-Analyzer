@@ -81,6 +81,8 @@
       axisLabel: { color: p.muted, fontSize: 11 }, splitLine: { lineStyle: { color: p.grid } },
     };
   }
+  /** Tooltip header – a day, or the start of a week for long periods. */
+  const period = (d) => (d.bucket === "week" ? `${t("Týždeň od")} ${d.day}` : d.day);
   const shortDay = (d) => { const [, m, dd] = d.split("-"); return LANG === "en" ? `${+m}/${+dd}` : `${+dd}.${+m}.`; };
 
   // --------------------------------------------------------------- builders
@@ -102,14 +104,16 @@
           tooltip: Object.assign(base(p).tooltip, { trigger: "axis", axisPointer: { type: "shadow", shadowStyle: { color: p.surface2, opacity: .6 } },
             formatter: (items) => {
               const d = timeline[items[0].dataIndex];
-              return `<b>${d.day}</b><br>` + items.map((i) => `${i.marker} ${i.seriesName}: <b>${fmt(i.value)}</b>`).join("<br>") +
+              return `<b>${period(d)}</b><br>` + items.map((i) => `${i.marker} ${i.seriesName}: <b>${fmt(i.value)}</b>`).join("<br>") +
                 `<br>${t("Spolu")}: <b>${fmt(d.total)}</b> · ${t("súlad")} <b>${pct(d.pass_pct)}</b>`;
             } }),
           xAxis: Object.assign({ type: "category", data: days }, axisCommon(p), { splitLine: { show: false } }),
-          yAxis: Object.assign({ type: "value" }, axisCommon(p)),
+          yAxis: Object.assign({ type: "value" }, axisCommon(p), { axisLabel: { color: p.muted, fontSize: 11, formatter: (v) => fmt(v) } }),
           series: ser.map((s, i) => ({
             name: s.name, type: "bar", stack: "v", barMaxWidth: 26, data: timeline.map(s.key),
-            itemStyle: { color: s.color, borderColor: p.surface, borderWidth: 1, borderRadius: i === ser.length - 1 ? [4, 4, 0, 0] : 0 },
+            // the 1px surface gap would swallow bars that are only a few pixels wide
+            itemStyle: { color: s.color, borderColor: p.surface, borderWidth: timeline.length > 60 ? 0 : 1,
+              borderRadius: i === ser.length - 1 && timeline.length <= 60 ? [4, 4, 0, 0] : 0 },
             emphasis: { focus: "series" },
           })),
         });
@@ -121,7 +125,7 @@
       return register(el, (p) => Object.assign(base(p), {
         grid: { left: 8, right: 12, top: 18, bottom: 4, containLabel: true },
         tooltip: Object.assign(base(p).tooltip, { trigger: "axis", axisPointer: { type: "line", lineStyle: { color: p.muted } },
-          formatter: (items) => { const d = timeline[items[0].dataIndex]; return `<b>${d.day}</b><br>${t("Súlad")}: <b>${pct(d.pass_pct)}</b><br>${t("Správ")}: ${fmt(d.total)}`; } }),
+          formatter: (items) => { const d = timeline[items[0].dataIndex]; return `<b>${period(d)}</b><br>${t("Súlad")}: <b>${pct(d.pass_pct)}</b><br>${t("Správ")}: ${fmt(d.total)}`; } }),
         xAxis: Object.assign({ type: "category", boundaryGap: false, data: timeline.map((d) => shortDay(d.day)) }, axisCommon(p), { splitLine: { show: false } }),
         yAxis: Object.assign({ type: "value", min: 0, max: 100, axisLabel: { color: p.muted, fontSize: 11, formatter: "{value} %" } }, { splitLine: { lineStyle: { color: p.grid } } }),
         series: [{

@@ -51,7 +51,7 @@
 
 <div class="grid g-21 mt">
   <div class="card">
-    <div class="card-head"><h2>{{ _('Objem pošty podľa výsledku DMARC') }}</h2><span class="hint">{{ _('denne') }}</span></div>
+    <div class="card-head"><h2>{{ _('Objem pošty podľa výsledku DMARC') }}</h2><span class="hint">{{ _('týždenne') if data.timeline and data.timeline[0].bucket == 'week' else _('denne') }}</span></div>
     <div id="ch-volume" class="chart tall" role="img" aria-label="{{ _('Denný objem správ podľa výsledku DMARC') }}"></div>
   </div>
   <div class="card">

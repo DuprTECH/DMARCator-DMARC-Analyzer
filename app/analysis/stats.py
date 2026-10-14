@@ -104,6 +104,9 @@ def summary(db: Session, f: Filter) -> dict:
     return cur
 
 
+WEEKLY_AFTER_DAYS = 120  # longer periods are shown per week – daily bars would be thinner than a pixel
+
+
 def timeline(db: Session, f: Filter) -> list[dict]:
     rows = db.execute(
         f.where(
@@ -125,7 +128,19 @@ def timeline(db: Session, f: Filter) -> list[dict]:
             "pass_pct": _pct(passed, total),
         })
         d += timedelta(days=1)
-    return out
+    if len(out) <= WEEKLY_AFTER_DAYS:
+        return out
+    weeks: dict = {}
+    for row in out:
+        day = date.fromisoformat(row["day"])
+        key = (day - timedelta(days=day.weekday())).isoformat()  # Monday of that week
+        w = weeks.setdefault(key, {"day": key, "bucket": "week", "total": 0, "pass": 0, "fail": 0, "forwarded": 0,
+                                   "threat": 0, "quarantine": 0, "reject": 0})
+        for k in ("total", "pass", "fail", "forwarded", "threat", "quarantine", "reject"):
+            w[k] += row[k]
+    for w in weeks.values():
+        w["pass_pct"] = _pct(w["pass"], w["total"])
+    return list(weeks.values())
 
 
 def categories(db: Session, f: Filter) -> list[dict]:

@@ -87,7 +87,7 @@ _ = translate
 JS_STRINGS = [
     "Prešlo DMARC", "Preposlané (fail)", "Zlyhalo", "Spolu", "súlad", "Súlad", "Správ", "správ",
     "Zlyhalo:", "Mapa nie je dostupná (offline).", "V súlade", "Preposlané", "Nesúlad (legitímny zdroj)",
-    "Hrozba / neznámy", "SPF + DKIM", "Iba SPF", "Iba DKIM", "Žiadne", "Neznáma", "Neznámy",
+    "Hrozba / neznámy", "Týždeň od", "SPF + DKIM", "Iba SPF", "Iba DKIM", "Žiadne", "Neznáma", "Neznámy",
 ]
 
 

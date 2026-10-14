@@ -123,6 +123,8 @@ EN: dict[str, str] = {
     "Zlyhalo": "Failed",
     "Zlyhalo:": "Failed:",
     "Spolu": "Total",
+    "Týždeň od": "Week of",
+    "týždenne": "weekly",
     "Mapa nie je dostupná (offline).": "Map not available (offline).",
     "SPF + DKIM": "SPF + DKIM",
     "Iba SPF": "SPF only",

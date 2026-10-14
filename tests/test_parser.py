@@ -110,3 +110,15 @@ def test_sender_identification_and_category():
     assert categorize(base, "SendGrid") == "noncompliant"
     assert categorize({**base, "dkim_results": [{"domain": "x.com", "result": "pass"}]}, "Google Workspace") == "forwarded"
     assert categorize({**base, "dkim_results": [{"domain": "c.onmicrosoft.com", "result": "pass"}]}, "Microsoft 365") == "noncompliant"
+
+
+def test_long_periods_are_weekly():
+    import tests.test_app  # noqa: F401  configures the test database
+    from app.analysis import stats
+    from app.db import SessionLocal
+
+    with SessionLocal() as db:
+        year = stats.timeline(db, stats.Filter.from_params(365))
+        month = stats.timeline(db, stats.Filter.from_params(30))
+    assert 52 <= len(year) <= 54 and all(w["bucket"] == "week" for w in year)
+    assert len(month) == 30 and "bucket" not in month[0]

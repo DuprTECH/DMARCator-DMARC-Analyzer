@@ -24,6 +24,29 @@ def set_language(code: str | None) -> str:
     return code
 
 
+def browser_language(accept_language: str | None, default: str = "en") -> str:
+    """Slovak when the browser's most preferred language is Slovak, otherwise English."""
+    best, best_q = None, -1.0
+    for part in (accept_language or "").split(","):
+        tag, _, params = part.strip().partition(";")
+        if not tag:
+            continue
+        q = 1.0
+        for p in params.split(";"):
+            k, _, v = p.strip().partition("=")
+            if k == "q":
+                try:
+                    q = float(v)
+                except ValueError:
+                    q = 0.0
+        # equal q-values keep the browser's order
+        if q > best_q:
+            best, best_q = tag.lower(), q
+    if best is None or best == "*":
+        return default if default in LANGUAGES else "en"
+    return "sk" if best.split("-")[0] == "sk" else "en"
+
+
 def get_language() -> str:
     return _lang.get()
 

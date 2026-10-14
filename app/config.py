@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_name: str = "DMARCula"
-    default_language: str = "sk"  # sk | en – users can switch in the UI
+    default_language: str = "en"  # used when the browser sends no Accept-Language; users can switch in the UI
     base_url: str = "http://localhost:8000"
     secret_key: str = "change-me-please-change-me-please"
     database_url: str = "sqlite:///./data/dmarcula.db"

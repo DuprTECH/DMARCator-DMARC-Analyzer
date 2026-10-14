@@ -3,6 +3,12 @@
 All notable changes to DMARCula. Versions follow [semantic versioning](https://semver.org/).
 The running version is shown in the page footer, by `GET /healthz` and by `python -m app.manage version`.
 
+## 1.1.1 – 2026-10-14
+
+- The UI language follows the browser: Slovak for a Slovak browser, English otherwise
+  (`DEFAULT_LANGUAGE` now only applies when the browser sends no language; default `en`)
+- Test suite: no background DNS threads (fixes an intermittent SQLite lock in tests)
+
 ## 1.1.0 – 2026-10-14
 
 - **LDAP and SSO configurable in the web UI** (*Administrácia → Prihlásenie (LDAP / SSO)*), with live

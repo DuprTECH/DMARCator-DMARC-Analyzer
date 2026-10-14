@@ -12,7 +12,7 @@ schránky*). Their credentials are stored encrypted in the database.
 | Variable | Default | Description |
 |---|---|---|
 | `APP_NAME` | `DMARCula` | Name shown in the UI and page titles. |
-| `DEFAULT_LANGUAGE` | `sk` | UI language for visitors who haven't chosen one: `sk` or `en`. Users switch with SK / EN in the top bar (stored in a cookie). |
+| `DEFAULT_LANGUAGE` | `en` | The UI language follows the browser: Slovak if the browser's preferred language is Slovak, English otherwise. This value is used only when the browser sends no language. A choice made with SK / EN in the top bar is stored in a cookie and takes precedence. |
 | `BASE_URL` | `http://localhost:8000` | Public URL of the app. Used to build the SSO redirect URI. |
 | `SECRET_KEY` | – (**required**) | Signs session cookies. The encryption key for stored mailbox credentials is derived from it. Minimum 16 characters, 48+ random characters recommended. Changing it logs everyone out, and stored mailbox credentials must be re-entered. |
 | `DATABASE_URL` | `sqlite:///./data/dmarcula.db` | SQLAlchemy URL, see below. |

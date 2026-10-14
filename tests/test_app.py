@@ -9,6 +9,7 @@ os.environ["ADMIN_PASSWORD"] = "Sup3rSecret!!"
 os.environ["RESOLVE_PTR"] = "false"
 os.environ["POLL_INTERVAL_MINUTES"] = "999"
 os.environ["SCHEDULER_ENABLED"] = "false"
+os.environ["DEFAULT_LANGUAGE"] = "sk"  # the suite checks Slovak texts; the test client sends no Accept-Language
 
 import gzip  # noqa: E402
 

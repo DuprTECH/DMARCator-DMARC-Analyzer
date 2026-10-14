@@ -1,6 +1,6 @@
 # User guide
 
-The UI is available in **Slovak and English**. Switch the language with **SK / EN** in the top bar or on the sign-in page; the choice is remembered in the browser (cookie). The default for new visitors is set by `DEFAULT_LANGUAGE`. This guide uses the English UI terms and, where useful, gives the Slovak term in parentheses.
+The UI is available in **Slovak and English**. By default it follows the browser: Slovak for a Slovak browser, English for any other language. Switch with **SK / EN** in the top bar or on the sign-in page; that choice is remembered in the browser (cookie). This guide uses the English UI terms and, where useful, gives the Slovak term in parentheses.
 
 ## Filters
 

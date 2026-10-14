@@ -6,7 +6,7 @@ sent each message (Microsoft 365, SendGrid, Mailchimp, …) and checks the DNS p
 domain. The results are shown on a dashboard built for managing **many domains** at once.
 It's inspired by dmarcian, Valimail, EasyDMARC and parsedmarc.
 
-**Author:** [DuprTECH](https://github.com/DuprTECH) · **Version:** 1.1.0 ([changelog](CHANGELOG.md)) · The user interface is available in **Slovak and English** (switch in the top bar). The documentation is in English.
+**Author:** [DuprTECH](https://github.com/DuprTECH) · **Version:** 1.1.1 ([changelog](CHANGELOG.md)) · The user interface is available in **Slovak and English** (switch in the top bar). The documentation is in English.
 
 📖 **Full documentation: [docs/](docs/README.md)**: [Installation](docs/installation.md) · [Operations](docs/operations.md) ·
 [Configuration](docs/configuration.md) · [Authentication](docs/authentication.md) ·

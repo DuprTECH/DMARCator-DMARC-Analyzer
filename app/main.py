@@ -14,7 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import __version__
 from .config import get_settings
 from .db import init_db, session_scope
-from .i18n import LANGUAGES, set_language
+from .i18n import LANGUAGES, browser_language, set_language
 from .ingest.service import refresh_dns, run_all_sources
 from .models import User
 from .routes import admin, auth, pages
@@ -78,7 +78,8 @@ app.include_router(pages.router)
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
-    set_language(request.cookies.get("lang") or settings.default_language)
+    set_language(request.cookies.get("lang")
+                 or browser_language(request.headers.get("accept-language"), settings.default_language))
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")

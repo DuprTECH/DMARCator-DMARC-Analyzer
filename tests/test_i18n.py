@@ -103,3 +103,18 @@ def test_language_switch_cookie():
         assert r.headers["location"] == "/"
         client.cookies.set("lang", "en")
         assert "Sign in" in client.get("/login").text
+
+
+def test_browser_language_detection():
+    assert i18n.browser_language("sk-SK,sk;q=0.9,en;q=0.8") == "sk"
+    assert i18n.browser_language("sk") == "sk"
+    assert i18n.browser_language("en-US,en;q=0.9,sk;q=0.8") == "en"
+    assert i18n.browser_language("cs-CZ,cs;q=0.9") == "en"
+    assert i18n.browser_language("de;q=0.5, sk;q=0.9") == "sk"
+    assert i18n.browser_language(None) == "en"
+    assert i18n.browser_language("", "sk") == "sk"
+    with TestClient(app) as client:
+        assert '<html lang="sk">' in client.get("/login", headers={"accept-language": "sk-SK,sk;q=0.9"}).text
+        assert '<html lang="en">' in client.get("/login", headers={"accept-language": "de-DE,de"}).text
+        client.cookies.set("lang", "sk")   # an explicit choice wins over the browser
+        assert '<html lang="sk">' in client.get("/login", headers={"accept-language": "en-US"}).text

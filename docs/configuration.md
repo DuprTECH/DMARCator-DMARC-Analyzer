@@ -91,6 +91,7 @@ The LDAP and SSO settings below can also be set in the web UI (*Administrácia �
 | `DNS_SERVERS` | – (`.env.example`: `1.1.1.1,8.8.8.8`) | Comma-separated resolvers for DNS checks and PTR lookups. Empty means the system resolvers. **Use public resolvers** when the server's own DNS has an internal copy of your zones (split-horizon / Active Directory DNS). Such a server answers "no TXT record" and every domain looks like it has no SPF, DKIM or DMARC. The app flags this when reports prove that a record exists. A failed lookup (timeout) is shown as *Nezistené*, never as "missing". |
 | `GEOIP_COUNTRY_DB` | – | Path to MaxMind `GeoLite2-Country.mmdb`. |
 | `GEOIP_ASN_DB` | – | Path to MaxMind `GeoLite2-ASN.mmdb`. |
+| `RAW_XML_MAX_KB` | `2048` | Aggregate reports larger than this are stored without their original XML (all records are still stored). Keeps inserts below MariaDB's `max_allowed_packet`. |
 | `MAX_ATTACHMENT_MB` | `50` | Maximum size of one message or uploaded file. Extracted archives have a fixed 200 MB limit. |
 
 GeoLite2 databases are free after registering at maxmind.com. Download them and point the two

@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     geoip_country_db: str = ""  # path to GeoLite2-Country.mmdb (optional)
     geoip_asn_db: str = ""  # path to GeoLite2-ASN.mmdb (optional)
     max_attachment_mb: int = 50
+    raw_xml_max_kb: int = 2048  # larger report XML is not stored verbatim (records are always stored)
 
     @property
     def oidc_allowed_group_list(self) -> list[str]:

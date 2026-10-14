@@ -364,6 +364,7 @@ EN: dict[str, str] = {
     "Spracovanie spustené na pozadí – výsledok sa zobrazí v logu.": "Processing started in the background – the result will appear in the log.",
     "Zdroj {name} odstránený.": "Mailbox {name} deleted.",
     "Zdroj sa práve spracúva.": "The mailbox is being processed right now.",
+    "Zdroj neexistuje.": "The mailbox does not exist.",
 
     # ------------------------------------------------------------------ admin: upload / users
     "Ručné nahratie DMARC / TLS-RPT reportov": "Manual upload of DMARC / TLS-RPT reports",

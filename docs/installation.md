@@ -111,6 +111,7 @@ Apache / nginx vhost, cron jobs) contain `__PLACEHOLDERS__` and follow the same 
 | Login keeps returning to the login page | `COOKIE_SECURE=true` while the site runs over plain HTTP. Enable HTTPS or set it to `false`. |
 | SSO error after the Microsoft sign-in | `BASE_URL` must be the exact public `https://` URL, and the Entra redirect URI must be `BASE_URL/auth/oidc/callback`. |
 | Forgotten admin password | `cd /opt/dmarcula && runuser -u dmarcula -- .venv/bin/python -m app.manage set-password admin` |
+| Mailbox log shows `PendingRollbackError`, `server has gone away` or `Lost connection` | Fixed in 1.1.4: each report is stored in its own transaction, and a failing message no longer blocks the mailbox. Update. Root cause: `journalctl -u dmarcula --utc --since "…"`. The log in the UI is in UTC, `journalctl` uses local time unless you pass `--utc`. |
 | Mailbox errors | *Administrácia → Poštové schránky → Log*, and [Microsoft 365 setup → troubleshooting](microsoft-365.md#troubleshooting) |
 
 Backups, cron jobs, logs and maintenance commands: [Operations](operations.md).

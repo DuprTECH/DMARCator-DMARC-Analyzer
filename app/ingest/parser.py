@@ -92,7 +92,18 @@ def decompress(blob: bytes, name: str = "") -> list[tuple[str, bytes]]:
 # ------------------------------------------------------ aggregate (RUA)
 
 
-def parse_aggregate(xml_bytes: bytes) -> ParsedReport:
+def _period_fallback(name: str) -> tuple[int, int]:
+    """Report period when date_range is missing: Unix timestamps in the file name, else the last day."""
+    stamps = [int(x) for x in re.findall(r"(?<!\d)(\d{10})(?!\d)", name or "")]
+    if len(stamps) >= 2:
+        return min(stamps[:2]), max(stamps[:2])
+    if stamps:
+        return stamps[0], stamps[0] + 86399
+    now = int(datetime.now(timezone.utc).timestamp())
+    return now - 86400, now
+
+
+def parse_aggregate(xml_bytes: bytes, name: str = "") -> ParsedReport:
     try:
         root = _strip_ns(ET.fromstring(xml_bytes))
     except Exception as exc:  # noqa: BLE001
@@ -102,10 +113,11 @@ def parse_aggregate(xml_bytes: bytes) -> ParsedReport:
 
     meta = root.find("report_metadata")
     pol = root.find("policy_published")
-    begin = _text(meta, "date_range/begin")
-    end = _text(meta, "date_range/end")
+    # some reporters put date_range elsewhere or omit it – look anywhere, then fall back
+    begin = _text(meta, "date_range/begin") or _text(root, ".//date_range/begin")
+    end = _text(meta, "date_range/end") or _text(root, ".//date_range/end")
     if not begin or not end:
-        raise ParseError("Chýba date_range")
+        begin, end = _period_fallback(name)
 
     def pct(v):
         try:
@@ -306,7 +318,7 @@ def _classify_blob(name: str, blob: bytes, result: ExtractResult):
         head = data[:4096].lstrip(b"\xef\xbb\xbf \r\n\t")
         try:
             if head.startswith(b"<") and b"<feedback" in data[:65536]:
-                result.reports.append(parse_aggregate(data))
+                result.reports.append(parse_aggregate(data, fname))
             elif head.startswith(b"{"):
                 result.reports.append(parse_tls(data))
             elif fname.lower().endswith(".eml") or b"\nContent-Type:" in data[:65536] or data[:65536].startswith(b"Received:"):

@@ -78,7 +78,8 @@ def store(db: Session, parsed: ParsedReport, source: str) -> bool:
             **{k: d[k] for k in ("org_name", "org_email", "report_id", "domain", "date_begin", "date_end",
                                  "adkim", "aspf", "p", "sp", "np", "pct", "fo", "message_count")},
             source=source,
-            raw_xml=parsed.raw,
+            # very large XML would exceed the database packet limit (MariaDB max_allowed_packet)
+            raw_xml=parsed.raw if parsed.raw and len(parsed.raw) <= get_settings().raw_xml_max_kb * 1024 else None,
         )
         db.add(rep)
         db.flush()
@@ -145,20 +146,30 @@ def store(db: Session, parsed: ParsedReport, source: str) -> bool:
 
 
 def store_result(db: Session, result: ExtractResult, source: str) -> dict:
+    """Store every report in its own transaction – one failing report (or a dropped database
+    connection) must not take the others down or leave the session unusable."""
     stats = {"new": 0, "duplicate": 0, "errors": list(result.errors)}
     for parsed in result.reports:
         try:
-            with db.begin_nested():
-                if store(db, parsed, source):
-                    stats["new"] += 1
-                else:
-                    stats["duplicate"] += 1
+            if store(db, parsed, source):
+                stats["new"] += 1
+            else:
+                stats["duplicate"] += 1
+            db.commit()
         except Exception as exc:  # noqa: BLE001
+            db.rollback()
             log.exception("store failed")
-            stats["errors"].append(f"{parsed.kind}: {exc}")
+            stats["errors"].append(f"{parsed.kind}: {_short_error(exc)}")
     if stats["new"]:
         invalidate()
     return stats
+
+
+def _short_error(exc: Exception) -> str:
+    """Root cause of a (database) error in one line, without SQL statements and parameters."""
+    orig = getattr(exc, "orig", None)
+    text = f"{exc.__class__.__name__}: {orig if orig is not None else exc}"
+    return text.split("\n")[0][:400]
 
 
 # ----------------------------------------------------------- mail sources
@@ -194,25 +205,32 @@ def run_source(source_id: int, limit: int = 500) -> str:
                         add_log(db, name, f"Správa '{subject}' prekročila limit veľkosti", "error")
                     mbox.done(mid, False)
                     continue
-                with session_scope() as db:
-                    res = extract_from_email(raw)
-                    st = store_result(db, res, name)
-                    for e in st["errors"]:
-                        add_log(db, name, f"'{subject[:120]}': {e}", "error")
-                    if not res.reports and not res.errors:
-                        add_log(db, name, f"'{subject[:120]}': správa neobsahuje DMARC/TLS report", "warn")
-                ok = not st["errors"]
-                totals["new"] += st["new"]
-                totals["duplicate"] += st["duplicate"]
+                res = None
+                try:
+                    with session_scope() as db:
+                        res = extract_from_email(raw)
+                        st = store_result(db, res, name)
+                        for e in st["errors"]:
+                            add_log(db, name, f"'{subject[:120]}': {e}", "error")
+                        if not res.reports and not res.errors:
+                            add_log(db, name, f"'{subject[:120]}': správa neobsahuje DMARC/TLS report", "warn")
+                    ok = not st["errors"]
+                    totals["new"] += st["new"]
+                    totals["duplicate"] += st["duplicate"]
+                except Exception as exc:  # noqa: BLE001 – one bad message must not block the mailbox
+                    log.exception("message %r failed", subject)
+                    ok = False
+                    with session_scope() as db:
+                        add_log(db, name, f"'{subject[:120]}': {_short_error(exc)}", "error")
                 totals["errors"] += 0 if ok else 1
-                mbox.done(mid, ok or bool(res.reports))
+                mbox.done(mid, ok or bool(res and res.reports))
             message = (f"{totals['messages']} správ, {totals['new']} nových reportov, "
                        f"{totals['duplicate']} duplicít, {totals['errors']} chýb")
             if totals["errors"]:
                 status = "warn"
         except Exception as exc:  # noqa: BLE001
             log.exception("source %s failed", name)
-            status, message = "error", f"{exc.__class__.__name__}: {exc}"
+            status, message = "error", _short_error(exc)
         finally:
             mbox.close()
         with session_scope() as db:

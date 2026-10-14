@@ -3,6 +3,17 @@
 All notable changes to DMARCula. Versions follow [semantic versioning](https://semver.org/).
 The running version is shown in the page footer, by `GET /healthz` and by `python -m app.manage version`.
 
+## 1.1.4 – 2026-10-14
+
+- **Fix:** a database error while storing one report (e.g. MariaDB *server has gone away*) left the
+  session broken (`PendingRollbackError`), and the same message blocked the mailbox on every run.
+  Each report is now stored in its own transaction, a failing message is logged with its real cause
+  and skipped, and processing continues with the next messages.
+- Report XML larger than `RAW_XML_MAX_KB` (default 2 MB) is no longer stored verbatim, so it stays
+  under MariaDB's `max_allowed_packet`
+- Aggregate reports without `date_range` (seen from some senders) are accepted; the period is taken
+  from the Unix timestamp in the file name or the day of receipt
+
 ## 1.1.3 – 2026-10-14
 
 - Charts for periods longer than 120 days (e.g. 1 year) are aggregated per week – daily bars were

@@ -8,13 +8,19 @@ os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL") or (
 os.environ["ADMIN_PASSWORD"] = "Sup3rSecret!!"
 os.environ["RESOLVE_PTR"] = "false"
 os.environ["POLL_INTERVAL_MINUTES"] = "999"
+os.environ["SCHEDULER_ENABLED"] = "false"
 
 import gzip  # noqa: E402
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+import app.routes.admin as admin_routes  # noqa: E402
 from app.main import app  # noqa: E402
 from tests.test_parser import AGG, ARF, TLS  # noqa: E402
+
+# Uploads and added domains start a DNS check in a background thread. In tests it would run real DNS
+# lookups and write to the shared database concurrently with the next test – keep the suite deterministic.
+admin_routes.refresh_dns = lambda **kwargs: None
 
 
 def csrf(html: str) -> str:

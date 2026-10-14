@@ -23,27 +23,24 @@ Then it does everything else:
 |---|---|
 | packages | Python, Git, MariaDB, Apache or nginx, certbot, cron |
 | database | MariaDB database `dmarcula` and a user with a random password |
-| application | `git clone` into `/home/dmarc/dmarcula` (`/opt/dmarcula` on RHEL), Python venv, `.env` with a random `SECRET_KEY` |
+| application | system user `dmarcula` (created if missing), `git clone` into `/opt/dmarcula`, Python venv, `.env` with a random `SECRET_KEY` |
 | service | systemd unit `dmarcula` on `127.0.0.1:8000` |
 | web server | virtual host for your name, firewall ports, SELinux boolean, HTTPS |
 | cron | daily DB backup to `/var/backups/dmarcula`, weekly cleanup of reports older than 2 years, mailbox alerts |
 
 At the end it prints the URL and the admin password. Then:
 1. sign in and add the report mailbox: *Administrácia → Poštové schránky* ([Microsoft 365 setup](microsoft-365.md)),
-2. optionally enable LDAP or SSO in `.env` ([Authentication](authentication.md)).
+2. optionally enable LDAP or SSO in *Administrácia → Prihlásenie (LDAP / SSO)* ([Authentication](authentication.md)).
 
-**Update:** run the installer again: `sudo bash /home/dmarc/dmarcula/deploy/install.sh` (`/opt/dmarcula/…` on RHEL).
-It detects the installation, pulls the new version and restarts the service.
+**Update:** run the installer again: `sudo bash /opt/dmarcula/deploy/install.sh`. It detects the installation, pulls the new version, restarts the service and prints the version.
 
-> **Never install into `public_html`** or any other web root, because `.env` with the passwords would become downloadable.
-> The application runs as a service, and the web server only forwards requests to it.
+The application runs as a service; the web server only forwards requests to it. Nothing is placed in a web root.
 
 ## Special cases
 
-**Existing site / hosting panel.** If a virtual host for the name already exists (e.g. with
-`DocumentRoot /home/dmarc/public_html`), or a panel such as Virtualmin, HestiaCP or ISPConfig is
-detected, the installer leaves the web server alone and prints these lines. Add them to the existing
-`<VirtualHost *:443>` (in a panel: the site's custom Apache directives) and empty `public_html`:
+**Existing site / hosting panel.** If a virtual host for the name already exists, or a panel such as
+Virtualmin, HestiaCP or ISPConfig is detected, the installer leaves the web server alone and prints
+these lines. Add them to the existing `<VirtualHost *:443>` (in a panel: the site's custom Apache directives):
 
 ```apache
 ProxyPreserveHost On
@@ -78,7 +75,7 @@ RequestHeader set X-Forwarded-Proto "https" env=HTTPS
 
 ```bash
 a2enmod ssl rewrite headers proxy proxy_http && apache2ctl configtest && systemctl restart apache2
-sed -i -e 's|^BASE_URL=.*|BASE_URL=https://dmarc.example.com|' -e 's|^COOKIE_SECURE=.*|COOKIE_SECURE=true|' /home/dmarc/dmarcula/.env
+sed -i -e 's|^BASE_URL=.*|BASE_URL=https://dmarc.example.com|' -e 's|^COOKIE_SECURE=.*|COOKIE_SECURE=true|' /opt/dmarcula/.env
 systemctl restart dmarcula
 ```
 
@@ -113,7 +110,7 @@ Apache / nginx vhost, cron jobs) contain `__PLACEHOLDERS__` and follow the same 
 | `502` / `503` from the web server | `systemctl status dmarcula`, `journalctl -u dmarcula -n 50`. On RHEL: `setsebool -P httpd_can_network_connect 1`. |
 | Login keeps returning to the login page | `COOKIE_SECURE=true` while the site runs over plain HTTP. Enable HTTPS or set it to `false`. |
 | SSO error after the Microsoft sign-in | `BASE_URL` must be the exact public `https://` URL, and the Entra redirect URI must be `BASE_URL/auth/oidc/callback`. |
-| Forgotten admin password | `cd /home/dmarc/dmarcula && runuser -u dmarc -- .venv/bin/python -m app.manage set-password admin` |
+| Forgotten admin password | `cd /opt/dmarcula && runuser -u dmarcula -- .venv/bin/python -m app.manage set-password admin` |
 | Mailbox errors | *Administrácia → Poštové schránky → Log*, and [Microsoft 365 setup → troubleshooting](microsoft-365.md#troubleshooting) |
 
 Backups, cron jobs, logs and maintenance commands: [Operations](operations.md).

@@ -8,6 +8,25 @@ Three login methods are available, and they can be enabled at the same time:
 | **LDAP / AD** | automatically at first login | from `LDAP_ADMIN_GROUP`, otherwise `DEFAULT_ROLE` |
 | **SSO (OIDC)** | automatically at first login | from `OIDC_ADMIN_GROUPS`, otherwise `DEFAULT_ROLE` |
 
+## Where to configure
+
+Open **Administrácia → Prihlásenie (LDAP / SSO)** in the web UI (admins only). It configures local
+accounts, LDAP / Active Directory and SSO (OpenID Connect). Changes apply immediately, without a restart.
+
+- **Test before saving:** *Otestovať prihlásenie* signs a real user in against LDAP with the values
+  currently in the form and shows each step: connection, service account, user search, password,
+  group membership and resulting role. *Overiť nastavenie SSO* loads the OIDC discovery document and
+  shows the redirect URI to register in Entra ID.
+- Passwords and client secrets are stored encrypted (key derived from `SECRET_KEY`) and are never
+  shown again; leave the field empty to keep the stored value.
+- Values saved in the UI override the `LDAP_*` / `OIDC_*` variables in `.env`. *Vrátiť na hodnoty z .env*
+  drops them again.
+- **Lock-out protection:** local sign-in can only be turned off while you are signed in via LDAP or SSO,
+  which proves that it works. Emergency rollback on the server:
+  `cd /opt/dmarcula && runuser -u dmarcula -- .venv/bin/python -m app.manage auth-reset && systemctl restart dmarcula`.
+
+The sections below explain the individual settings; the same names are used in the UI and in `.env`.
+
 ## Roles
 
 | Role | Permissions |

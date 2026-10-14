@@ -207,3 +207,14 @@ class IpInfo(Base):
     asn: Mapped[int | None] = mapped_column(Integer)
     asn_org: Mapped[str | None] = mapped_column(String(255))
     checked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class AppSetting(Base):
+    """Settings changed in the web UI (stored encrypted, override values from .env)."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+    updated_by: Mapped[str | None] = mapped_column(String(255))

@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
+from . import __version__
 from .config import get_settings
 from .db import init_db, session_scope
 from .i18n import LANGUAGES, set_language
@@ -44,6 +45,7 @@ async def lifespan(_: FastAPI):
         raise RuntimeError("SECRET_KEY must be set to a random string of at least 16 characters")
     if settings.secret_key.startswith("change-me"):
         log.warning("SECRET_KEY is the default value – set a long random SECRET_KEY in production!")
+    log.info("DMARCula %s starting", __version__)
     init_db()
     bootstrap_admin()
     if settings.scheduler_enabled:
@@ -59,7 +61,7 @@ async def lifespan(_: FastAPI):
         scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title=settings.app_name, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title=settings.app_name, version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.secret_key,
@@ -116,4 +118,4 @@ def switch_language(code: str, request: Request):
 
 @app.get("/healthz", include_in_schema=False)
 def healthz():
-    return {"status": "ok"}
+    return {"status": "ok", "version": __version__}

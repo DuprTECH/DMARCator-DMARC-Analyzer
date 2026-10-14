@@ -45,6 +45,9 @@ Notes:
 
 ## LDAP / Active Directory
 
+The LDAP and SSO settings below can also be set in the web UI (*Administrácia → Prihlásenie (LDAP / SSO)*); values saved there override `.env`. See [Authentication](authentication.md#where-to-configure).
+
+
 | Variable | Default | Description |
 |---|---|---|
 | `LDAP_ENABLED` | `false` | Enables LDAP login. |

@@ -9,7 +9,7 @@
 #
 # Every question can be answered in advance with an environment variable (for unattended installs):
 #   DMARC_HOST=dmarc.example.com  WEB=apache|nginx|none  LETSENCRYPT=yes|no  LE_EMAIL=...
-#   ADMIN_PASSWORD=...  ALERT_EMAIL=...  APP_USER=dmarc  APP_DIR=...  APP_PORT=8000  ASSUME_YES=1
+#   ADMIN_PASSWORD=...  ALERT_EMAIL=...  APP_USER=dmarcula  APP_DIR=/opt/dmarcula  APP_PORT=8000  ASSUME_YES=1
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/DuprTECH/DMARCula---DMARC-Anylzer.git}"
@@ -105,8 +105,9 @@ printf '%sDMARCula installer%s – %s\n' "$B" "$N" "${PRETTY_NAME:-$ID}"
 cd /    # the app user must be able to access the working directory
 
 # ------------------------------------------------------------------ existing install → update
-APP_USER="${APP_USER:-dmarc}"
-for candidate in "${APP_DIR:-}" "/home/$APP_USER/dmarcula" /opt/dmarcula; do
+APP_USER="${APP_USER:-dmarcula}"
+# /home/dmarc/dmarcula: layout used by early versions
+for candidate in "${APP_DIR:-}" /opt/dmarcula /home/dmarc/dmarcula "/home/$APP_USER/dmarcula"; do
     if [[ -n "$candidate" && -f "$candidate/.env" && -d "$candidate/.git" && -f /etc/systemd/system/dmarcula.service ]]; then
         APP_DIR="$candidate"
         APP_USER="$(stat -c %U "$APP_DIR")"
@@ -117,6 +118,7 @@ for candidate in "${APP_DIR:-}" "/home/$APP_USER/dmarcula" /opt/dmarcula; do
         systemctl restart dmarcula
         APP_PORT="$(sed -n 's/.*--port \([0-9]*\).*/\1/p' /etc/systemd/system/dmarcula.service | head -1)"
         APP_PORT="${APP_PORT:-8000}"
+        info "Version: $(as_app .venv/bin/python -m app.manage version)"
         wait_healthy || die "Service did not come up – check: journalctl -u dmarcula -n 50"
         info "Updated and running."
         exit 0
@@ -128,8 +130,7 @@ step "A few questions (press Enter for the default)"
 ask DMARC_HOST "Host name of the web interface (DNS must point to this server), e.g. dmarc.example.com" "$(hostname -f 2>/dev/null || hostname)"
 [[ -n "$DMARC_HOST" ]] || die "A host name is required."
 
-if [[ "$FAMILY" == rhel ]]; then default_dir=/opt/dmarcula; else default_dir="/home/$APP_USER/dmarcula"; fi
-ask APP_DIR "Install directory (NOT inside public_html)" "$default_dir"
+ask APP_DIR "Install directory" "/opt/dmarcula"
 [[ "$APP_DIR" == *public_html* || "$APP_DIR" == /var/www* ]] && die "Do not install into a web root ($APP_DIR) – .env and the database password would be downloadable."
 
 if [[ -n "$PANEL" ]]; then
@@ -235,7 +236,10 @@ info "Database '${DB_NAME}' and user '${DB_USER}' ready."
 
 # ------------------------------------------------------------------ user, code, python
 step "Application user and code"
-id "$APP_USER" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$APP_USER"
+# dedicated system user without login shell; its home is the application directory
+id "$APP_USER" >/dev/null 2>&1 || useradd --system --no-create-home --home-dir "$APP_DIR" \
+    --shell "$(command -v nologin || echo /usr/sbin/nologin)" "$APP_USER"
+info "System user: $APP_USER"
 install -d -o "$APP_USER" -g "$APP_USER" -m 750 "$APP_DIR"
 if [[ -d "$APP_DIR/.git" ]]; then
     as_app git -C "$APP_DIR" pull --ff-only
@@ -416,7 +420,7 @@ cat <<EOF
     Next steps:
       1. In the web UI: Administrácia → Poštové schránky → add the Exchange Online mailbox
          (guide: docs/microsoft-365.md)
-      2. Optional LDAP / SSO login: edit ${APP_DIR}/.env, then: systemctl restart dmarcula
+      2. Optional LDAP / SSO login: Administrácia → Prihlásenie (LDAP / SSO)
          (guide: docs/authentication.md)
 
     Useful commands:

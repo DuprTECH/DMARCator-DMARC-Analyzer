@@ -2,7 +2,7 @@
 
 Day-to-day running of a DMARCula server: scheduled jobs, backups, data retention, monitoring,
 logs and maintenance commands. The paths match the [installation guide](installation.md)
-(app in `/home/dmarc/dmarcula`, system user `dmarc`, MariaDB database `dmarcula`).
+(app in `/opt/dmarcula`, system user `dmarcula`, MariaDB database `dmarcula`).
 
 - [What runs automatically](#what-runs-automatically)
 - [Maintenance commands](#maintenance-commands)
@@ -39,8 +39,8 @@ Cron is for everything around it: backups, deleting old data, health checks.
 All commands run as the `dmarc` user from the app directory, with the same `.env` as the service:
 
 ```bash
-cd /home/dmarc/dmarcula
-sudo -u dmarc .venv/bin/python -m app.manage <command>
+cd /opt/dmarcula
+sudo -u dmarcula .venv/bin/python -m app.manage <command>
 ```
 
 | Command | What it does | Exit code |
@@ -55,9 +55,9 @@ sudo -u dmarc .venv/bin/python -m app.manage <command>
 Examples:
 
 ```bash
-sudo -u dmarc .venv/bin/python -m app.manage status
-sudo -u dmarc .venv/bin/python -m app.manage prune --days 730 --dry-run
-sudo -u dmarc .venv/bin/python -m app.manage set-password admin        # forgotten admin password
+sudo -u dmarcula .venv/bin/python -m app.manage status
+sudo -u dmarcula .venv/bin/python -m app.manage prune --days 730 --dry-run
+sudo -u dmarcula .venv/bin/python -m app.manage set-password admin        # forgotten admin password
 ```
 
 Dashboards are cached for up to 5 minutes. Changes made by these commands (e.g. after `prune`)
@@ -76,37 +76,37 @@ with Task Scheduler. The installed jobs:
 | every 30 min | `app.manage status --max-age 60`: check that every mailbox was processed within the last hour | when a mailbox fails or stalls |
 
 To change times, retention or the alert address, edit `/etc/cron.d/dmarcula` as root. Cron
-picks up the change automatically. The file looks like this (`dmarc` = app user):
+picks up the change automatically. The file looks like this (`dmarcula` = app user):
 
 ```cron
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
 MAILTO=admin@example.com
 
-30 2 * * *   dmarc  mariadb-dump --defaults-extra-file=/home/dmarc/dmarcula/.backup.my.cnf --single-transaction --quick dmarcula | gzip > /var/backups/dmarcula/dmarcula-$(date +\%F).sql.gz && find /var/backups/dmarcula -name 'dmarcula-*.sql.gz' -mtime +30 -delete
-15 3 * * 0   dmarc  cd /home/dmarc/dmarcula && .venv/bin/python -m app.manage prune --days 730 > /dev/null
-*/30 * * * * dmarc  cd /home/dmarc/dmarcula && .venv/bin/python -m app.manage status --max-age 60 > /tmp/dmarcula-status.txt || cat /tmp/dmarcula-status.txt
+30 2 * * *   dmarcula  mariadb-dump --defaults-extra-file=/opt/dmarcula/.backup.my.cnf --single-transaction --quick dmarcula | gzip > /var/backups/dmarcula/dmarcula-$(date +\%F).sql.gz && find /var/backups/dmarcula -name 'dmarcula-*.sql.gz' -mtime +30 -delete
+15 3 * * 0   dmarcula  cd /opt/dmarcula && .venv/bin/python -m app.manage prune --days 730 > /dev/null
+*/30 * * * * dmarcula  cd /opt/dmarcula && .venv/bin/python -m app.manage status --max-age 60 > /tmp/dmarcula-status.txt || cat /tmp/dmarcula-status.txt
 ```
 
 Notes:
-- Lines in `/etc/cron.d/` have a **user column** (`dmarc`) after the schedule, unlike `crontab -e`.
+- Lines in `/etc/cron.d/` have a **user column** (`dmarcula`) after the schedule, unlike `crontab -e`.
 - `%` must be escaped as `\%`.
 - `.backup.my.cnf` (created by the installer, mode 600) holds the database credentials for the dump.
 - `MAILTO` needs a working local MTA, e.g. `apt install postfix` configured as *Satellite system*
-  with your mail server as relay. Without one, cron output goes to `/var/mail/dmarc`.
+  with your mail server as relay. Without one, cron output goes to `/var/mail/dmarcula`.
 - Check that jobs ran: `grep dmarcula /var/log/syslog` (Debian), `journalctl -u cron` or
   `journalctl -u crond`, or `/var/log/cron` (EL).
 - Optional extra check that the web app answers (every 5 min):
 
   ```cron
-  */5 * * * * dmarc  curl -fsS -m 10 -o /dev/null http://127.0.0.1:8000/healthz || echo "DMARCula is not responding"
+  */5 * * * * dmarcula  curl -fsS -m 10 -o /dev/null http://127.0.0.1:8000/healthz || echo "DMARCula is not responding"
   ```
 
 ### Polling from cron (only with `SCHEDULER_ENABLED=false`)
 
 ```cron
-*/15 * * * * dmarc  cd /home/dmarc/dmarcula && flock -n /tmp/dmarcula-poll.lock .venv/bin/python -m app.manage poll > /dev/null
-40 4 * * *   dmarc  cd /home/dmarc/dmarcula && flock -n /tmp/dmarcula-dns.lock  .venv/bin/python -m app.manage dns  > /dev/null
+*/15 * * * * dmarcula  cd /opt/dmarcula && flock -n /tmp/dmarcula-poll.lock .venv/bin/python -m app.manage poll > /dev/null
+40 4 * * *   dmarcula  cd /opt/dmarcula && flock -n /tmp/dmarcula-dns.lock  .venv/bin/python -m app.manage dns  > /dev/null
 ```
 
 `flock -n` skips a run if the previous one is still going.
@@ -122,8 +122,8 @@ Description=DMARCula database backup
 
 [Service]
 Type=oneshot
-User=dmarc
-ExecStart=/bin/bash -c 'mariadb-dump --defaults-extra-file=/home/dmarc/dmarcula/.backup.my.cnf --single-transaction --quick dmarcula | gzip > /var/backups/dmarcula/dmarcula-$(date +%%F).sql.gz && find /var/backups/dmarcula -name "dmarcula-*.sql.gz" -mtime +30 -delete'
+User=dmarcula
+ExecStart=/bin/bash -c 'mariadb-dump --defaults-extra-file=/opt/dmarcula/.backup.my.cnf --single-transaction --quick dmarcula | gzip > /var/backups/dmarcula/dmarcula-$(date +%%F).sql.gz && find /var/backups/dmarcula -name "dmarcula-*.sql.gz" -mtime +30 -delete'
 EOF
 
 sudo tee /etc/systemd/system/dmarcula-backup.timer >/dev/null <<'EOF'
@@ -150,7 +150,7 @@ What to back up:
 | Item | Why |
 |---|---|
 | MariaDB database `dmarcula` | all reports, domains, users, mailbox settings |
-| `/home/dmarc/dmarcula/.env` | `SECRET_KEY` decrypts the stored mailbox credentials. Without it they must be re-entered. |
+| `/opt/dmarcula/.env` | `SECRET_KEY` decrypts the stored mailbox credentials. Without it they must be re-entered. |
 | Apache/nginx vhost, systemd unit | configuration |
 
 The nightly dump from the cron job lands in `/var/backups/dmarcula`. Copy it off the server as
@@ -289,11 +289,11 @@ Take a backup before every update.
 
 | Task | How |
 |---|---|
-| Forgotten admin password | `sudo -u dmarc .venv/bin/python -m app.manage set-password admin` |
+| Forgotten admin password | `sudo -u dmarcula .venv/bin/python -m app.manage set-password admin` |
 | Locked out (LDAP/SSO broken) | `create-admin rescue`, log in locally (requires `LOCAL_LOGIN_ENABLED=true`), fix the settings, then delete the account |
 | Fetch reports right now | UI: *Poštové schránky → Spustiť*, or `python -m app.manage poll` |
 | Re-check all DNS now | UI: *Domény → Skontrolovať DNS*, or `python -m app.manage dns` |
 | Import historical reports | UI: *Import reportov* (zip/gz/xml/eml) |
 | Change `SECRET_KEY` | edit `.env`, restart, then re-enter the mailbox secrets (they can't be decrypted with the new key) |
-| Update the application | run the installer again: `sudo bash /home/dmarc/dmarcula/deploy/install.sh` |
+| Update the application | run the installer again: `sudo bash /opt/dmarcula/deploy/install.sh` |
 | Restart | `sudo systemctl restart dmarcula` |

@@ -6,7 +6,6 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..auth import ldap_auth, oidc
-from ..config import get_settings
 from ..db import get_db
 from ..models import User, utcnow
 from ..security import (
@@ -17,6 +16,7 @@ from ..security import (
     verify_csrf,
     verify_password,
 )
+from ..settings_store import effective_settings
 from ..web import render
 
 log = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ def upsert_external(db: Session, source: str, username: str, display: str | None
         log.warning("Login via %s refused: username %s belongs to %s account", source, username, user.auth_source)
         return None
     if not user:
-        user = User(username=username, auth_source=source, role=mapped_role or get_settings().default_role)
+        user = User(username=username, auth_source=source, role=mapped_role or effective_settings().default_role)
         db.add(user)
     elif mapped_role:
         user.role = mapped_role
@@ -54,7 +54,7 @@ def login_page(request: Request):
 
 @router.post("/login", dependencies=[Depends(verify_csrf)])
 def login_submit(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
-    s = get_settings()
+    s = effective_settings()
     username = username.strip()
     key = f"{request.client.host if request.client else '-'}:{username.lower()}"
     if not throttle_check(key):
@@ -67,7 +67,7 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
         user.last_login = utcnow()
         db.commit()
     elif not local and s.ldap_enabled:
-        ident = ldap_auth.authenticate(username, password)
+        ident = ldap_auth.authenticate(username, password, s)
         if ident:
             role = ("admin" if ident.is_admin else s.default_role) if s.ldap_admin_group else None
             user = upsert_external(db, "ldap", ident.username, ident.display_name, ident.email, role)
@@ -86,13 +86,13 @@ async def oidc_login(request: Request):
     client = oidc.client()
     if not client:
         return RedirectResponse("/login", 303)
-    return await client.authorize_redirect(request, f"{get_settings().base_url.rstrip('/')}/auth/oidc/callback")
+    return await client.authorize_redirect(request, f"{effective_settings().base_url.rstrip('/')}/auth/oidc/callback")
 
 
 @router.get("/auth/oidc/callback")
 async def oidc_callback(request: Request, db: Session = Depends(get_db)):
-    s = get_settings()
-    client = oidc.client()
+    s = effective_settings()
+    client = oidc.client(s)
     if not client:
         return RedirectResponse("/login", 303)
     try:
@@ -101,7 +101,7 @@ async def oidc_callback(request: Request, db: Session = Depends(get_db)):
         log.warning("OIDC callback failed: %s", exc)
         return render(request, "login.html", {"error": "SSO prihlásenie zlyhalo."}, 401)
     claims = token.get("userinfo") or {}
-    username, name, email, groups = oidc.map_claims(dict(claims))
+    username, name, email, groups = oidc.map_claims(dict(claims), s)
     allowed = s.oidc_allowed_group_list
     if allowed and not set(allowed) & set(groups):
         return render(request, "login.html", {"error": "Nemáte oprávnenie na prístup do aplikácie."}, 403)

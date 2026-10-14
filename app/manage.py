@@ -6,6 +6,8 @@
     python -m app.manage status [--max-age MIN]     mailbox health; exit code 1 on problems
     python -m app.manage set-password USERNAME      set a local account's password
     python -m app.manage create-admin USERNAME      create a local admin account
+    python -m app.manage auth-reset                 drop sign-in settings saved in the web UI (back to .env)
+    python -m app.manage version                    print the version
 """
 
 import argparse
@@ -16,9 +18,19 @@ from datetime import timedelta
 
 from sqlalchemy import delete, func, select
 
+from . import __version__
 from .db import init_db, session_scope
 from .ingest.service import refresh_dns, run_all_sources, run_source
-from .models import AggregateRecord, AggregateReport, ForensicReport, IngestLog, MailSource, TlsReport, User, utcnow
+from .models import (
+    AggregateRecord,
+    AggregateReport,
+    ForensicReport,
+    IngestLog,
+    MailSource,
+    TlsReport,
+    User,
+    utcnow,
+)
 from .security import hash_password
 
 BATCH = 1000
@@ -127,9 +139,20 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("username")
     p = sub.add_parser("create-admin", help="create a local admin account")
     p.add_argument("username")
+    sub.add_parser("auth-reset", help="drop sign-in settings saved in the web UI (back to .env)")
+    sub.add_parser("version", help="print the version")
     args = ap.parse_args(argv)
 
+    if args.cmd == "version":
+        print(f"DMARCula {__version__}")
+        return 0
     init_db()
+    if args.cmd == "auth-reset":
+        from .settings_store import clear_auth
+
+        clear_auth()
+        print("Sign-in settings from the web UI removed – .env values apply again (restart the service).")
+        return 0
     if args.cmd == "poll":
         return poll(args.source)
     if args.cmd == "dns":

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon %}
+{% block title %}{{ _('Prihlásenie (LDAP / SSO)') }}{% endblock %}
+{% block heading %}{{ _('Prihlásenie (LDAP / SSO)') }}{% endblock %}
+{% block subtitle %}{{ _('Nastavenia uložené tu majú prednosť pred .env') }}{% endblock %}
+
+{% macro field(name, label, hint='', placeholder='', full=False) -%}
+<div class="field{% if full %} full{% endif %}"><label for="f-{{ name }}">{{ label }}</label>
+  <input id="f-{{ name }}" type="text" name="{{ name }}" value="{{ cfg[name] or '' }}" placeholder="{{ placeholder }}">
+  {% if hint %}<div class="hint">{{ hint }}</div>{% endif %}</div>
+{%- endmacro %}
+{% macro secret(name, label) -%}
+<div class="field"><label for="f-{{ name }}">{{ label }}</label>
+  <input id="f-{{ name }}" type="password" name="{{ name }}" autocomplete="new-password" placeholder="{{ _('•••••• (uložené – nechajte prázdne)') if cfg[name] else '' }}"></div>
+{%- endmacro %}
+{% macro check(name, label) -%}
+<label class="toggle"><input type="checkbox" name="{{ name }}" {% if cfg[name] %}checked{% endif %}> {{ label }}</label>
+{%- endmacro %}
+{% macro trace(steps) -%}
+<ul class="issues mt">
+{% for t in steps %}<li class="{{ 'ok' if t.ok else 'error' }}"><span class="ico">{{ '✓' if t.ok else '!' }}</span><span>{{ _(t.msg, **t.args) }}</span></li>{% endfor %}
+</ul>
+{%- endmacro %}
+
+{% block content %}
+<form method="post" action="/admin/auth" autocomplete="off">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+
+  <div class="card">
+    <h2>{{ _('Lokálne účty') }}</h2>
+    <div class="form-grid">
+      <div class="field">{{ check('local_login_enabled', _('Povoliť prihlásenie lokálnym účtom')) }}
+        <div class="hint">{{ _('Vypnúť sa dá až po prihlásení cez LDAP alebo SSO. Núdzový návrat: python -m app.manage auth-reset') }}</div></div>
+      <div class="field"><label for="f-default_role">{{ _('Rola nových LDAP / SSO používateľov') }}</label>
+        <select id="f-default_role" name="default_role">
+          {% for r in ['viewer', 'admin'] %}<option value="{{ r }}" {% if cfg.default_role == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+        </select>
+        <div class="hint">{{ _('Platí, ak používateľ nie je v skupine administrátorov.') }}</div></div>
+    </div>
+  </div>
+
+  <div class="card mt">
+    <div class="section-head"><h2>LDAP / Active Directory</h2>{{ check('ldap_enabled', _('Zapnuté')) }}</div>
+    <div class="form-grid">
+      {{ field('ldap_server', _('Server'), _('ldaps://server:636, alebo ldap://server:389 so StartTLS'), 'ldaps://dc01.example.local:636') }}
+      <div class="field"><label>{{ _('Šifrovanie') }}</label>
+        {{ check('ldap_start_tls', 'StartTLS') }}
+        {{ check('ldap_tls_verify', _('Overovať certifikát servera')) }}</div>
+      {{ field('ldap_base_dn', 'Base DN', '', 'DC=example,DC=local') }}
+      {{ field('ldap_ca_file', _('Súbor s CA certifikátom (PEM)'), _('iba pri internej CA'), '/etc/ssl/certs/internal-ca.pem') }}
+      {{ field('ldap_bind_dn', _('Servisný účet (Bind DN)'), _('prázdne = prihlásenie priamo menom používateľa'), 'CN=svc-dmarcula,OU=Service,DC=example,DC=local') }}
+      {{ secret('ldap_bind_password', _('Heslo servisného účtu')) }}
+      {{ field('ldap_upn_suffix', _('UPN suffix'), _('bez servisného účtu: meno → meno@suffix'), 'example.local') }}
+      {{ field('ldap_user_filter', _('Filter používateľa'), _('{username} sa nahradí zadaným menom')) }}
+      {{ field('ldap_allowed_group', _('Povolená skupina (DN)'), _('prázdne = každý platný účet'), 'CN=DMARC-Users,OU=Groups,DC=example,DC=local') }}
+      {{ field('ldap_admin_group', _('Skupina administrátorov (DN)'), '', 'CN=DMARC-Admins,OU=Groups,DC=example,DC=local') }}
+      {{ field('ldap_attr_display_name', _('Atribút mena')) }}
+      {{ field('ldap_attr_mail', _('Atribút e-mailu')) }}
+      <div class="field">{{ check('ldap_nested_groups', _('Vnorené skupiny (Active Directory)')) }}</div>
+    </div>
+    <details class="mt" {% if ldap_trace is not none %}open{% endif %}>
+      <summary>{{ icon('search') }} {{ _('Otestovať LDAP s hodnotami z formulára (neukladá sa)') }}</summary>
+      <div class="form-grid mt">
+        <div class="field"><label for="t-u">{{ _('Testovací používateľ') }}</label><input id="t-u" type="text" name="test_username" value="{{ test_user }}"></div>
+        <div class="field"><label for="t-p">{{ _('Heslo') }}</label><input id="t-p" type="password" name="test_password" autocomplete="new-password"></div>
+      </div>
+      <div class="actions mt"><button class="btn" type="submit" name="action" value="test_ldap">{{ _('Otestovať prihlásenie') }}</button></div>
+      {% if ldap_trace %}{{ trace(ldap_trace) }}{% endif %}
+    </details>
+  </div>
+
+  <div class="card mt">
+    <div class="section-head"><h2>SSO (OpenID Connect)</h2>{{ check('oidc_enabled', _('Zapnuté')) }}</div>
+    <p class="hint" style="margin-top:0">{{ _('Redirect URI pre registráciu aplikácie (Entra ID → App registrations → Authentication → Web):') }} <code>{{ redirect_uri }}</code></p>
+    <div class="form-grid">
+      {{ field('oidc_discovery_url', 'Discovery URL', _('Entra ID: https://login.microsoftonline.com/<TENANT_ID>/v2.0/.well-known/openid-configuration'), '', True) }}
+      {{ field('oidc_client_id', 'Client ID') }}
+      {{ secret('oidc_client_secret', 'Client secret') }}
+      {{ field('oidc_scopes', 'Scopes') }}
+      {{ field('oidc_button_label', _('Text tlačidla')) }}
+      {{ field('oidc_username_claim', _('Claim s menom používateľa')) }}
+      {{ field('oidc_groups_claim', _('Claim so skupinami')) }}
+      {{ field('oidc_allowed_groups', _('Povolené skupiny / roly'), _('ID skupín alebo názvy app rolí oddelené čiarkou; prázdne = všetci')) }}
+      {{ field('oidc_admin_groups', _('Skupiny / roly administrátorov'), _('napr. DMARC.Admin')) }}
+    </div>
+    <div class="actions mt"><button class="btn" type="submit" name="action" value="test_oidc">{{ icon('search') }}{{ _('Overiť nastavenie SSO') }}</button></div>
+    {% if oidc_trace %}{{ trace(oidc_trace) }}{% endif %}
+  </div>
+
+  <div class="actions mt2">
+    <button class="btn primary" type="submit" name="action" value="save">{{ _('Uložiť') }}</button>
+    <span class="hint">{{ _('Zmena platí okamžite, bez reštartu.') }}</span>
+  </div>
+</form>
+
+{% if stored %}
+<form class="mt" method="post" action="/admin/auth/reset" data-confirm="{{ _('Zrušiť nastavenia z webu a vrátiť hodnoty z .env?') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <button class="btn sm danger" type="submit">{{ _('Vrátiť na hodnoty z .env') }}</button>
+</form>
+{% endif %}
+{% endblock %}

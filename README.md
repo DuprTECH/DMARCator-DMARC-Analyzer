@@ -6,7 +6,7 @@ sent each message (Microsoft 365, SendGrid, Mailchimp, …) and checks the DNS p
 domain. The results are shown on a dashboard built for managing **many domains** at once.
 It's inspired by dmarcian, Valimail, EasyDMARC and parsedmarc.
 
-**Author:** [DuprTECH](https://github.com/DuprTECH) · The user interface is available in **Slovak and English** (switch in the top bar). The documentation is in English.
+**Author:** [DuprTECH](https://github.com/DuprTECH) · **Version:** 1.1.0 ([changelog](CHANGELOG.md)) · The user interface is available in **Slovak and English** (switch in the top bar). The documentation is in English.
 
 📖 **Full documentation: [docs/](docs/README.md)**: [Installation](docs/installation.md) · [Operations](docs/operations.md) ·
 [Configuration](docs/configuration.md) · [Authentication](docs/authentication.md) ·
@@ -17,7 +17,7 @@ It's inspired by dmarcian, Valimail, EasyDMARC and parsedmarc.
 
 | Area | What it does |
 |---|---|
-| **Login** | local accounts, **LDAP / Active Directory** (LDAPS/StartTLS, service account or direct UPN bind, group filter, nested groups), **SSO via OpenID Connect** (Entra ID, Keycloak, Okta, ADFS, …). `admin` / `viewer` roles can be mapped from groups. |
+| **Login** | configured in the web UI with built-in connection tests: local accounts, **LDAP / Active Directory** (LDAPS/StartTLS, service account or direct UPN bind, group filter, nested groups), **SSO via OpenID Connect** (Entra ID, Keycloak, Okta, ADFS, …). `admin` / `viewer` roles can be mapped from groups. |
 | **Ingest** | **Microsoft Graph** (Exchange Online, app-only, client secret or certificate, scoped with RBAC for Applications), **IMAP** (password or OAuth2 XOAUTH2 for Exchange Online), manual upload (.xml, .gz, .zip, .json, .eml). Processed messages are marked read and/or moved, and duplicates are skipped. |
 | **Reports** | aggregate (RUA), including the DMARC 2.0 namespace; forensic (RUF / ARF); SMTP TLS reporting (TLS-RPT, RFC 8460) |
 | **Classification** | compliant / forwarded / non-compliant legitimate source / threat, dmarcian-style. Recognizes 60+ sending services and M365 tenants without custom DKIM. |
@@ -36,8 +36,8 @@ curl -fsSL https://raw.githubusercontent.com/DuprTECH/DMARCula---DMARC-Anylzer/m
 sudo bash install.sh
 ```
 
-The installer asks for the host name and admin password. It then installs MariaDB, the
-application, the systemd service, Apache or nginx with HTTPS, and cron jobs for backups.
+The installer asks for the host name and admin password. It then creates the system user `dmarcula`
+and installs MariaDB, the application (`/opt/dmarcula`), the systemd service, Apache or nginx with HTTPS, and cron jobs for backups.
 Running it again updates the application.
 
 Then add the report mailbox in *Administrácia → Poštové schránky*

@@ -6,13 +6,35 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from .. import settings_store
 from ..analysis.cache import invalidate
+from ..auth import ldap_auth, oidc
 from ..config import get_settings
 from ..db import get_db
 from ..ingest.parser import extract_from_file
-from ..ingest.service import add_log, open_mailbox, refresh_dns, run_source, store_result
-from ..models import AggregateReport, Domain, ForensicReport, IngestLog, MailSource, TlsReport, User
-from ..security import admin_required, decrypt_json, encrypt_json, hash_password, verify_csrf
+from ..ingest.service import (
+    add_log,
+    open_mailbox,
+    refresh_dns,
+    run_source,
+    store_result,
+)
+from ..models import (
+    AggregateReport,
+    Domain,
+    ForensicReport,
+    IngestLog,
+    MailSource,
+    TlsReport,
+    User,
+)
+from ..security import (
+    admin_required,
+    decrypt_json,
+    encrypt_json,
+    hash_password,
+    verify_csrf,
+)
 from ..web import flash, render
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(admin_required)])
@@ -249,3 +271,54 @@ def domain_delete(did: int, request: Request, db: Session = Depends(get_db)):
         invalidate()
         flash(request, f"Doména {dom.name} a všetky jej reporty boli odstránené.")
     return RedirectResponse("/domains", 303)
+
+
+# ------------------------------------------------------------ sign-in settings
+
+
+def _auth_page(request: Request, cfg, ldap_trace=None, oidc_trace=None, test_user: str = ""):
+    stored = settings_store.overrides()
+    return render(request, "admin/auth.html", {
+        "cfg": cfg, "stored": bool(stored), "ldap_trace": ldap_trace, "oidc_trace": oidc_trace, "test_user": test_user,
+        "redirect_uri": f"{cfg.base_url.rstrip('/')}/auth/oidc/callback",
+    })
+
+
+@router.get("/auth")
+def auth_settings(request: Request):
+    return _auth_page(request, settings_store.effective_settings())
+
+
+@router.post("/auth", dependencies=[Depends(verify_csrf)])
+async def auth_settings_save(request: Request, me: User = Depends(admin_required)):
+    form = await request.form()
+    current = settings_store.effective_settings()
+    values = settings_store.parse_form(form, current)
+    candidate = current.model_copy(update=values)
+    action = form.get("action", "save")
+
+    if action == "test_ldap":
+        trace: list = []
+        ldap_auth.authenticate(str(form.get("test_username") or ""), str(form.get("test_password") or ""),
+                               candidate.model_copy(update={"ldap_enabled": True}), trace)
+        return _auth_page(request, candidate, ldap_trace=trace, test_user=str(form.get("test_username") or ""))
+    if action == "test_oidc":
+        return _auth_page(request, candidate, oidc_trace=oidc.test_discovery(candidate))
+
+    if not values["local_login_enabled"] and me.auth_source == "local":
+        flash(request, "Lokálne prihlásenie môžete vypnúť až po prihlásení cez LDAP alebo SSO "
+                       "(overí sa tým, že funguje).", "error")
+        return _auth_page(request, candidate)
+    if not (values["local_login_enabled"] or values["ldap_enabled"] or values["oidc_enabled"]):
+        flash(request, "Aspoň jeden spôsob prihlásenia musí zostať zapnutý.", "error")
+        return _auth_page(request, candidate)
+    settings_store.save_auth(values, me.username)
+    flash(request, "Nastavenia prihlásenia uložené.")
+    return RedirectResponse("/admin/auth", 303)
+
+
+@router.post("/auth/reset", dependencies=[Depends(verify_csrf)])
+def auth_settings_reset(request: Request):
+    settings_store.clear_auth()
+    flash(request, "Nastavenia prihlásenia z webu boli zrušené – platia hodnoty z .env.")
+    return RedirectResponse("/admin/auth", 303)

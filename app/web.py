@@ -8,10 +8,11 @@ from fastapi import Request
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 
+from . import __version__
 from .analysis.senders import CATEGORIES
-from .config import get_settings
 from .i18n import LANGUAGES, get_language, js_strings, translate
 from .security import csrf_token
+from .settings_store import effective_settings
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
@@ -69,10 +70,11 @@ templates.env.globals["CATEGORIES"] = CATEGORIES
 templates.env.globals["LANGUAGES"] = LANGUAGES
 templates.env.globals["AUTHOR"] = AUTHOR
 templates.env.globals["AUTHOR_URL"] = AUTHOR_URL
+templates.env.globals["VERSION"] = __version__
 
 
 def render(request: Request, name: str, ctx: dict | None = None, status_code: int = 200):
-    s = get_settings()
+    s = effective_settings()
     base = {
         "request": request,
         "settings": s,

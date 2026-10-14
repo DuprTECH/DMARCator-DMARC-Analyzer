@@ -250,3 +250,7 @@ details summary { cursor: pointer; color: var(--text-secondary); font-weight: 50
 .login-lang { position: absolute; top: 20px; right: 20px; }
 @media (max-width: 860px) { .app-footer { padding-left: 16px; padding-right: 16px; } }
 summary svg { width: 16px; height: 16px; vertical-align: -3px; }
+.field input[type=checkbox], .field input[type=radio] { width: auto; }
+.field .toggle { margin: 4px 0; }
+.section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.section-head h2 { margin: 0; }

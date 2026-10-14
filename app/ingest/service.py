@@ -54,6 +54,16 @@ def _touch_domain(db: Session, name: str, seen):
 # ------------------------------------------------------------------ store
 
 
+def fit(model, data: dict) -> dict:
+    """Trim strings to the column length – MariaDB in strict mode rejects longer values instead of cutting them."""
+    out = {}
+    for key, value in data.items():
+        col = model.__table__.columns.get(key)
+        length = getattr(getattr(col, "type", None), "length", None)
+        out[key] = value[:length] if isinstance(value, str) and length else value
+    return out
+
+
 def first_results(dkim: list | None, spf: list | None) -> dict:
     d = (dkim or [{}])[0]
     s = (spf or [{}])[0]
@@ -75,8 +85,8 @@ def store(db: Session, parsed: ParsedReport, source: str) -> bool:
         if exists:
             return False
         rep = AggregateReport(
-            **{k: d[k] for k in ("org_name", "org_email", "report_id", "domain", "date_begin", "date_end",
-                                 "adkim", "aspf", "p", "sp", "np", "pct", "fo", "message_count")},
+            **fit(AggregateReport, {k: d[k] for k in ("org_name", "org_email", "report_id", "domain", "date_begin", "date_end",
+                                 "adkim", "aspf", "p", "sp", "np", "pct", "fo", "message_count")}),
             source=source,
             # very large XML would exceed the database packet limit (MariaDB max_allowed_packet)
             raw_xml=parsed.raw if parsed.raw and len(parsed.raw) <= get_settings().raw_xml_max_kb * 1024 else None,
@@ -99,10 +109,10 @@ def store(db: Session, parsed: ParsedReport, source: str) -> bool:
                     domain=d["domain"],
                     day=d["date_begin"].date(),
                     org_name=d["org_name"],
-                    **{k: r[k] for k in ("source_ip", "count", "disposition", "policy_dkim", "policy_spf",
-                                         "dmarc_pass", "spf_aligned", "dkim_aligned", "reasons", "header_from",
-                                         "envelope_from", "envelope_to", "dkim_results", "spf_results")},
-                    **first_results(r["dkim_results"], r["spf_results"]),
+                    **fit(AggregateRecord, {k: r[k] for k in ("source_ip", "count", "disposition", "policy_dkim", "policy_spf",
+                                                              "dmarc_pass", "spf_aligned", "dkim_aligned", "reasons", "header_from",
+                                                              "envelope_from", "envelope_to", "dkim_results", "spf_results")}),
+                    **fit(AggregateRecord, first_results(r["dkim_results"], r["spf_results"])),
                     ptr=ptr,
                     base_domain=info.base_domain if info else None,
                     sender=sender,
@@ -117,7 +127,7 @@ def store(db: Session, parsed: ParsedReport, source: str) -> bool:
     if parsed.kind == "forensic":
         if db.scalar(select(ForensicReport.id).where(ForensicReport.fingerprint == d["fingerprint"])):
             return False
-        fr = ForensicReport(**d, source=source)
+        fr = ForensicReport(**fit(ForensicReport, d), source=source)
         if d.get("source_ip"):
             info = enrich_ips(db, {d["source_ip"]}).get(d["source_ip"])
             if info:
@@ -137,8 +147,9 @@ def store(db: Session, parsed: ParsedReport, source: str) -> bool:
                 )
             ):
                 continue
-            db.add(TlsReport(org_name=d["org_name"], report_id=d["report_id"], contact=d.get("contact"),
-                             date_begin=d["date_begin"], date_end=d["date_end"], source=source, **p))
+            db.add(TlsReport(**fit(TlsReport, {"org_name": d["org_name"], "report_id": d["report_id"],
+                                               "contact": d.get("contact"), **p}),
+                             date_begin=d["date_begin"], date_end=d["date_end"], source=source))
             _touch_domain(db, p["policy_domain"], d["date_end"])
             added = True
         return added

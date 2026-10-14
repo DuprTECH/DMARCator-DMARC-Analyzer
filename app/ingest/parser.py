@@ -5,6 +5,7 @@ import email.policy
 import gzip
 import hashlib
 import io
+import ipaddress
 import json
 import re
 import zipfile
@@ -254,12 +255,42 @@ def _feedback_fields(part: Message) -> dict:
     return out
 
 
-def parse_forensic(msg: Message) -> ParsedReport:
+_IP_TOKEN = re.compile(r"[0-9a-fA-F:.]{3,45}")
+_FORENSIC_SUBJECT = re.compile(
+    r"(?:forensic|failure|auth(?:entication)?[- ]failure)\s+report\b.*?\bfor\s+(?P<domain>[\w.-]+\.[a-z]{2,63})"
+    r"(?:.*?\bfrom\s+(?:ip\s+)?(?P<ip>[0-9a-fA-F:.]{3,45}))?",
+    re.I,
+)
+
+
+def _clean_ip(value: str | None) -> str | None:
+    """First valid IPv4/IPv6 address in a field that may hold several addresses or extra text."""
+    for token in _IP_TOKEN.findall(value or ""):
+        try:
+            return str(ipaddress.ip_address(token.strip(".:")))
+        except ValueError:
+            continue
+    return None
+
+
+def _text_feedback_fields(msg: Message) -> dict:
+    """ARF fields written as plain text (some reporters skip the message/feedback-report part)."""
+    for part in msg.walk():
+        if part.get_content_type() != "text/plain":
+            continue
+        text = (part.get_payload(decode=True) or b"").decode(part.get_content_charset() or "utf-8", errors="replace")
+        if re.search(r"^(Feedback-Type|Auth-Failure|Source-IP|Reported-Domain):", text, re.M | re.I):
+            lines = [ln for ln in text.splitlines() if re.match(r"^[A-Za-z][\w-]*:\s", ln)]
+            return {k.lower(): str(v) for k, v in HeaderParser().parsestr("\n".join(lines) + "\n").items()}
+    return {}
+
+
+def parse_forensic(msg: Message, fallback: dict | None = None) -> ParsedReport:
     fields: dict = {}
     headers_text = ""
     for part in msg.walk():
         ctype = part.get_content_type()
-        if ctype == "message/feedback-report":
+        if ctype == "message/feedback-report" and not fields:
             fields = _feedback_fields(part)
         elif ctype == "text/rfc822-headers":
             headers_text = (part.get_payload(decode=True) or b"").decode("utf-8", errors="replace")
@@ -268,6 +299,8 @@ def parse_forensic(msg: Message) -> ParsedReport:
             inner = inner[0] if isinstance(inner, list) and inner else inner
             if isinstance(inner, Message):
                 headers_text = "".join(f"{k}: {v}\n" for k, v in inner.items())
+    if not fields:
+        fields = _text_feedback_fields(msg) or dict(fallback or {})
     if not fields:
         raise ParseError("Chýba message/feedback-report časť")
 
@@ -295,7 +328,7 @@ def parse_forensic(msg: Message) -> ParsedReport:
         "arrival_date": arrival,
         "reporter": parseaddr(str(msg.get("From", "")))[1] or None,
         "feedback_type": fields.get("feedback-type"),
-        "source_ip": (fields.get("source-ip") or "").strip() or None,
+        "source_ip": _clean_ip(fields.get("source-ip")),
         "reported_domain": reported,
         "auth_failure": fields.get("auth-failure"),
         "delivery_result": fields.get("delivery-result"),
@@ -348,7 +381,10 @@ def extract_from_email(raw: bytes) -> ExtractResult:
     result = ExtractResult()
     msg = email.message_from_bytes(raw, policy=email.policy.compat32)
 
-    if msg.get_content_type() == "multipart/report" and msg.get_param("report-type") == "feedback-report":
+    part_types = {p.get_content_type() for p in msg.walk()}
+    is_arf = (msg.get_content_type() == "multipart/report"
+              and str(msg.get_param("report-type") or "").lower() == "feedback-report")
+    if is_arf or "message/feedback-report" in part_types:
         try:
             result.reports.append(parse_forensic(msg))
         except ParseError as exc:
@@ -364,6 +400,22 @@ def extract_from_email(raw: bytes) -> ExtractResult:
             payload = part.get_payload(decode=True)
             if payload:
                 _classify_blob(fname, payload, result)
+
+    if not result.reports and not result.errors:
+        # forensic report without the standard ARF structure: plain-text fields, or at least
+        # "… Forensic Report for <domain> from IP <ip>" in the subject
+        subject = str(msg.get("Subject") or "")
+        m = _FORENSIC_SUBJECT.search(subject)
+        if m or _text_feedback_fields(msg):
+            fallback = {"feedback-type": "auth-failure"}
+            if m:
+                fallback["reported-domain"] = m.group("domain")
+                if m.group("ip"):
+                    fallback["source-ip"] = m.group("ip")
+            try:
+                result.reports.append(parse_forensic(msg, fallback))
+            except ParseError as exc:
+                result.errors.append(str(exc))
     return result
 
 

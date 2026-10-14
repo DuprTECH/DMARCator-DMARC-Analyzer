@@ -32,6 +32,14 @@ def _reader(path: str):
     return _readers[path]
 
 
+def _valid_ip(value: str) -> bool:
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return False
+
+
 def reverse_dns(ip: str) -> str | None:
     try:
         ans = _resolver().resolve(dns.reversename.from_address(ip), "PTR")
@@ -65,7 +73,7 @@ def _lookup(ip: str) -> dict:
 
 def enrich_ips(db: Session, ips: set[str], max_age_days: int = 14) -> dict[str, IpInfo]:
     """Return IpInfo for each IP, resolving uncached / stale entries in parallel."""
-    ips = {i for i in ips if i}
+    ips = {i for i in ips if i and _valid_ip(i)}
     cached = {i.ip: i for i in db.query(IpInfo).filter(IpInfo.ip.in_(ips)).all()} if ips else {}
     stale_before = utcnow() - timedelta(days=max_age_days)
     todo = [ip for ip in ips if ip not in cached or cached[ip].checked_at < stale_before]

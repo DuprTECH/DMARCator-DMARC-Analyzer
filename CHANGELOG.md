@@ -3,6 +3,13 @@
 All notable changes to DMARCula. Versions follow [semantic versioning](https://semver.org/).
 The running version is shown in the page footer, by `GET /healthz` and by `python -m app.manage version`.
 
+## 1.1.5 – 2026-10-14
+
+- Forensic reports in non-standard formats are recognised: `message/feedback-report` anywhere in the
+  message, ARF fields as plain text, or only "… Forensic Report for <domain> from IP <ip>" in the subject
+- **Fix:** `Data too long for column 'ip'` – the source IP is taken as the first valid address of the
+  field, and all text values are trimmed to the column size (MariaDB strict mode rejected them)
+
 ## 1.1.4 – 2026-10-14
 
 - **Fix:** a database error while storing one report (e.g. MariaDB *server has gone away*) left the

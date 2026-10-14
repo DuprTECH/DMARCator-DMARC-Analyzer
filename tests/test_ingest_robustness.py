@@ -109,3 +109,73 @@ def test_large_xml_is_not_stored_verbatim(monkeypatch):
         service.store_result(db, extract_from_file("big.xml", _report("big-1")), "test")
         rep = db.scalar(select(AggregateReport).where(AggregateReport.report_id == "big-1"))
         assert rep.raw_xml is None and len(rep.records) == 2
+
+
+ORIGINAL = b"""From: Gopass <info@gopass.travel>
+To: someone@example.com
+Subject: Planned maintenance
+Date: Tue, 13 Oct 2026 10:00:00 +0000
+Message-ID: <abc@gopass.travel>
+
+body
+"""
+
+
+def _wrap(subject: str, parts: list) -> bytes:
+    from email.mime.base import MIMEBase
+    from email.mime.text import MIMEText
+
+    msg = MIMEMultipart()
+    msg["Subject"] = subject
+    msg["From"] = "dmarc@reporter.example"
+    for kind, payload in parts:
+        if kind == "text":
+            msg.attach(MIMEText(payload, "plain"))
+        else:
+            part = MIMEBase(*kind.split("/"))
+            part.set_payload(payload)
+            msg.attach(part)
+    return msg.as_bytes()
+
+
+def test_forensic_variants():
+    from app.ingest.parser import extract_from_email
+
+    # 1) plain-text ARF fields, original message attached, non-standard container
+    raw = _wrap("DMARC Forensic Report for gopass.travel from IP 212.77.101.8", [
+        ("text", "This is a DMARC failure report.\nFeedback-Type: auth-failure\nSource-IP: 212.77.101.8\n"
+                 "Reported-Domain: gopass.travel\nAuth-Failure: dmarc\n"),
+        ("text/rfc822-headers", ORIGINAL.decode()),
+    ])
+    d = extract_from_email(raw).reports[0].data
+    assert (d["source_ip"], d["reported_domain"], d["auth_failure"]) == ("212.77.101.8", "gopass.travel", "dmarc")
+    assert d["subject"] == "Planned maintenance"
+
+    # 2) only the subject identifies it
+    raw = _wrap("DMARC Forensic Report for gopass.travel from IP 209.85.222.175", [
+        ("text", "A message failed DMARC."), ("text/rfc822-headers", ORIGINAL.decode())])
+    d = extract_from_email(raw).reports[0].data
+    assert d["source_ip"] == "209.85.222.175" and d["reported_domain"] == "gopass.travel"
+
+    # 3) Source-IP holding several values / text -> first valid address
+    raw = _wrap("x", [("message/feedback-report",
+                       "Feedback-Type: auth-failure\nSource-IP: 209.85.208.41, 209.85.208.42 (mail-ed1-f41.google.com)\n"
+                       "Reported-Domain: gopass.travel\n")])
+    d = extract_from_email(raw).reports[0].data
+    assert d["source_ip"] == "209.85.208.41"
+
+    # 4) an ordinary notification is not mistaken for a report
+    raw = _wrap("Centrum zabezpečenia pre Microsoft 365: Máte správy v karanténe", [("text", "Hello")])
+    res = extract_from_email(raw)
+    assert not res.reports and not res.errors
+
+
+def test_values_are_fitted_to_columns():
+    init_db()
+    long_from = ("x" * 300) + ".example.sk"
+    xml = _report("long-1").replace(b"<header_from>example.sk</header_from>", f"<header_from>{long_from}</header_from>".encode(), 1)
+    with session_scope() as db:
+        stats = service.store_result(db, extract_from_file("r.xml", xml), "test")
+        assert stats["new"] == 1 and not stats["errors"]
+        rep = db.scalar(select(AggregateReport).where(AggregateReport.report_id == "long-1"))
+        assert max(len(r.header_from) for r in rep.records) <= 255

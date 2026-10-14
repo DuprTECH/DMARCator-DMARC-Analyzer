@@ -6,7 +6,7 @@ sent each message (Microsoft 365, SendGrid, Mailchimp, …) and checks the DNS p
 domain. The results are shown on a dashboard built for managing **many domains** at once.
 It's inspired by dmarcian, Valimail, EasyDMARC and parsedmarc.
 
-**Author:** [DuprTECH](https://github.com/DuprTECH) · **Version:** 1.1.1 ([changelog](CHANGELOG.md)) · The user interface is available in **Slovak and English** (switch in the top bar). The documentation is in English.
+**Author:** [DuprTECH](https://github.com/DuprTECH) · **License:** [PolyForm Internal Use 1.0.0](LICENSE) (free for internal use in any company) · **Version:** 1.1.2 ([changelog](CHANGELOG.md)) · The user interface is available in **Slovak and English** (switch in the top bar). The documentation is in English.
 
 📖 **Full documentation: [docs/](docs/README.md)**: [Installation](docs/installation.md) · [Operations](docs/operations.md) ·
 [Configuration](docs/configuration.md) · [Authentication](docs/authentication.md) ·
@@ -57,3 +57,22 @@ Existing sites, company certificates, Docker, Windows and troubleshooting are co
 
 A local try-out with SQLite and demo data, plus the test suite, is described in
 [docs/architecture.md → Development and tests](docs/architecture.md#development-and-tests).
+
+## License
+
+DMARCula is **source-available** under the [PolyForm Internal Use License 1.0.0](LICENSE).
+Copyright © 2026 DuprTECH.
+
+In plain words (the [LICENSE](LICENSE) text is binding):
+
+- ✅ **Any company or organization may use DMARCula for its own internal operations, for free.**
+  This includes commercial companies. You may install it, run it and adapt it for your own needs.
+- ❌ You may **not** sell, rent, sublicense or redistribute the software, or offer it to third
+  parties as a hosted or paid service.
+- ❌ You may **not** publish or distribute it, or a modified version, under another name.
+  "DMARCula" and "DuprTECH" are names of the author and may not be used for other products or services.
+  The author attribution shown in the application must not be removed.
+
+For any other use (redistribution, resale, hosting for customers, partnership), contact
+[DuprTECH](https://github.com/DuprTECH).
+

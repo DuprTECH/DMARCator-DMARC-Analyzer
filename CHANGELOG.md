@@ -3,6 +3,11 @@
 All notable changes to DMARCula. Versions follow [semantic versioning](https://semver.org/).
 The running version is shown in the page footer, by `GET /healthz` and by `python -m app.manage version`.
 
+## 1.1.2 – 2026-10-14
+
+- License: PolyForm Internal Use 1.0.0 – free internal use in any organization; no resale,
+  redistribution, hosted services for third parties or rebranding (see README → License)
+
 ## 1.1.1 – 2026-10-14
 
 - The UI language follows the browser: Slovak for a Slovak browser, English otherwise

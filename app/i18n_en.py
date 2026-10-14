@@ -529,6 +529,7 @@ EN: dict[str, str] = {
     "Zrušiť nastavenia z webu a vrátiť hodnoty z .env?": "Drop the settings saved in the web UI and use the .env values again?",
     "Vrátiť na hodnoty z .env": "Revert to .env values",
     "verzia": "version",
+    "Licencia: interné použitie": "License: internal use",
     "Nastavenia prihlásenia uložené.": "Sign-in settings saved.",
     "Nastavenia prihlásenia z webu boli zrušené – platia hodnoty z .env.": "Sign-in settings from the web UI were removed – the .env values apply.",
     "Lokálne prihlásenie môžete vypnúť až po prihlásení cez LDAP alebo SSO (overí sa tým, že funguje).":

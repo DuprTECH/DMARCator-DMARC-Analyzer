@@ -18,6 +18,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 AUTHOR = "DuprTECH"
 AUTHOR_URL = "https://github.com/DuprTECH/DMARCula---DMARC-Anylzer"
+LICENSE_URL = AUTHOR_URL + "/blob/main/LICENSE"
 
 
 def _num(value) -> str:
@@ -71,6 +72,7 @@ templates.env.globals["LANGUAGES"] = LANGUAGES
 templates.env.globals["AUTHOR"] = AUTHOR
 templates.env.globals["AUTHOR_URL"] = AUTHOR_URL
 templates.env.globals["VERSION"] = __version__
+templates.env.globals["LICENSE_URL"] = LICENSE_URL
 
 
 def render(request: Request, name: str, ctx: dict | None = None, status_code: int = 200):

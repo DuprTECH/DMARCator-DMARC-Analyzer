@@ -139,9 +139,10 @@ render_cron() {
 
 # legacy_db_url – prints DATABASE_URL when it is a MariaDB database still named "dmarcula"
 legacy_db_url() {
-    local url
+    local url db
     url="$(env_get DATABASE_URL)"
-    [[ "$url" =~ ^mysql[^:]*://[^/]*/dmarcula([?].*)?$ ]] && printf '%s' "$url"
+    db="${url##*/}"; db="${db%%\?*}"
+    [[ "$url" == mysql* && "$db" == dmarcula ]] && printf '%s' "$url"
 }
 
 # rename_legacy_db – MariaDB database "dmarcula" → "dmarcator" (and the account, if it is called

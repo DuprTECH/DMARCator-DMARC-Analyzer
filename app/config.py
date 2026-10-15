@@ -1,18 +1,23 @@
+import os
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+LEGACY_APP_NAME = "DMARCula"  # name before 1.2.0
+LEGACY_SQLITE_FILE = "./data/dmarcula.db"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "DMARCula"
+    app_name: str = "UnDMARC"
     default_language: str = "en"  # used when the browser sends no Accept-Language; users can switch in the UI
     display_timezone: str = "UTC"
     display_language: str = "auto"
     base_url: str = "http://localhost:8000"
     secret_key: str = "change-me-please-change-me-please"
-    database_url: str = "sqlite:///./data/dmarcula.db"
+    database_url: str = "sqlite:///./data/undmarc.db"
     session_max_age_hours: int = 12
     cookie_secure: bool = False
 
@@ -62,6 +67,20 @@ class Settings(BaseSettings):
     geoip_asn_db: str = ""  # path to GeoLite2-ASN.mmdb (optional)
     max_attachment_mb: int = 50
     raw_xml_max_kb: int = 2048  # larger report XML is not stored verbatim (records are always stored)
+
+    @field_validator("app_name")
+    @classmethod
+    def _rename(cls, v: str) -> str:
+        # .env files written before the rename still say APP_NAME=DMARCula
+        return "UnDMARC" if v.strip() == LEGACY_APP_NAME else v
+
+    @field_validator("database_url")
+    @classmethod
+    def _legacy_sqlite(cls, v: str) -> str:
+        # keep using the SQLite file of an installation from before the rename
+        if v == "sqlite:///./data/undmarc.db" and not os.path.exists("./data/undmarc.db") and os.path.exists(LEGACY_SQLITE_FILE):
+            return "sqlite:///" + LEGACY_SQLITE_FILE
+        return v
 
     @property
     def oidc_allowed_group_list(self) -> list[str]:

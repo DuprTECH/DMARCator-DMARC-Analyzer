@@ -1,8 +1,8 @@
 # Operations
 
-Day-to-day running of a DMARCula server: scheduled jobs, backups, data retention, monitoring,
+Day-to-day running of a UnDMARC server: scheduled jobs, backups, data retention, monitoring,
 logs and maintenance commands. The paths match the [installation guide](installation.md)
-(app in `/opt/dmarcula`, system user `dmarcula`, MariaDB database `dmarcula`).
+(app in `/opt/undmarc`, system user `undmarc`, MariaDB database `undmarc`).
 
 - [What runs automatically](#what-runs-automatically)
 - [Maintenance commands](#maintenance-commands)
@@ -39,8 +39,8 @@ Cron is for everything around it: backups, deleting old data, health checks.
 All commands run as the `dmarc` user from the app directory, with the same `.env` as the service:
 
 ```bash
-cd /opt/dmarcula
-sudo -u dmarcula .venv/bin/python -m app.manage <command>
+cd /opt/undmarc
+sudo -u undmarc .venv/bin/python -m app.manage <command>
 ```
 
 | Command | What it does | Exit code |
@@ -49,15 +49,15 @@ sudo -u dmarcula .venv/bin/python -m app.manage <command>
 | `dns [--missing]` | re-runs DNS checks for all domains (or only never-checked ones) | 0 |
 | `prune --days N [--dry-run]` | deletes aggregate, forensic and TLS reports and log lines older than N days (minimum 30) | 0 |
 | `status [--max-age MIN]` | prints mailbox status and the newest stored report | **1** if a mailbox failed or hasn't run for MIN minutes (default 60) |
-| `set-password USERNAME` | sets a local account's password (prompts, or reads `DMARCULA_PASSWORD`) and re-activates it | 2 on error |
+| `set-password USERNAME` | sets a local account's password (prompts, or reads `UNDMARC_PASSWORD`) and re-activates it | 2 on error |
 | `create-admin USERNAME` | creates a new local admin account | 2 if it exists |
 
 Examples:
 
 ```bash
-sudo -u dmarcula .venv/bin/python -m app.manage status
-sudo -u dmarcula .venv/bin/python -m app.manage prune --days 730 --dry-run
-sudo -u dmarcula .venv/bin/python -m app.manage set-password admin        # forgotten admin password
+sudo -u undmarc .venv/bin/python -m app.manage status
+sudo -u undmarc .venv/bin/python -m app.manage prune --days 730 --dry-run
+sudo -u undmarc .venv/bin/python -m app.manage set-password admin        # forgotten admin password
 ```
 
 Dashboards are cached for up to 5 minutes. Changes made by these commands (e.g. after `prune`)
@@ -65,48 +65,48 @@ show up within that time, or immediately after the next report import.
 
 ## Cron jobs
 
-The installer puts [`deploy/cron/dmarcula`](../deploy/cron/dmarcula) into **`/etc/cron.d/dmarcula`**.
+The installer puts [`deploy/cron/undmarc`](../deploy/cron/undmarc) into **`/etc/cron.d/undmarc`**.
 On Windows, schedule [`deploy/windows/backup.ps1`](../deploy/windows/backup.ps1) and `python -m app.manage prune --days 730`
 with Task Scheduler. The installed jobs:
 
 | When | Job | Mails `MAILTO` |
 |---|---|---|
-| daily 02:30 | MariaDB dump to `/var/backups/dmarcula/dmarcula-YYYY-MM-DD.sql.gz`, files older than 30 days deleted | on error |
+| daily 02:30 | MariaDB dump to `/var/backups/undmarc/undmarc-YYYY-MM-DD.sql.gz`, files older than 30 days deleted | on error |
 | Sundays 03:15 | `app.manage prune --days 730`: delete reports older than 2 years | on error |
 | every 30 min | `app.manage status --max-age 60`: check that every mailbox was processed within the last hour | when a mailbox fails or stalls |
 
-To change times, retention or the alert address, edit `/etc/cron.d/dmarcula` as root. Cron
-picks up the change automatically. The file looks like this (`dmarcula` = app user):
+To change times, retention or the alert address, edit `/etc/cron.d/undmarc` as root. Cron
+picks up the change automatically. The file looks like this (`undmarc` = app user):
 
 ```cron
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
 MAILTO=admin@example.com
 
-30 2 * * *   dmarcula  mariadb-dump --defaults-extra-file=/opt/dmarcula/.backup.my.cnf --single-transaction --quick dmarcula | gzip > /var/backups/dmarcula/dmarcula-$(date +\%F).sql.gz && find /var/backups/dmarcula -name 'dmarcula-*.sql.gz' -mtime +30 -delete
-15 3 * * 0   dmarcula  cd /opt/dmarcula && .venv/bin/python -m app.manage prune --days 730 > /dev/null
-*/30 * * * * dmarcula  cd /opt/dmarcula && .venv/bin/python -m app.manage status --max-age 60 > /tmp/dmarcula-status.txt || cat /tmp/dmarcula-status.txt
+30 2 * * *   undmarc  mariadb-dump --defaults-extra-file=/opt/undmarc/.backup.my.cnf --single-transaction --quick undmarc | gzip > /var/backups/undmarc/undmarc-$(date +\%F).sql.gz && find /var/backups/undmarc -name 'undmarc-*.sql.gz' -mtime +30 -delete
+15 3 * * 0   undmarc  cd /opt/undmarc && .venv/bin/python -m app.manage prune --days 730 > /dev/null
+*/30 * * * * undmarc  cd /opt/undmarc && .venv/bin/python -m app.manage status --max-age 60 > /tmp/undmarc-status.txt || cat /tmp/undmarc-status.txt
 ```
 
 Notes:
-- Lines in `/etc/cron.d/` have a **user column** (`dmarcula`) after the schedule, unlike `crontab -e`.
+- Lines in `/etc/cron.d/` have a **user column** (`undmarc`) after the schedule, unlike `crontab -e`.
 - `%` must be escaped as `\%`.
 - `.backup.my.cnf` (created by the installer, mode 600) holds the database credentials for the dump.
 - `MAILTO` needs a working local MTA, e.g. `apt install postfix` configured as *Satellite system*
-  with your mail server as relay. Without one, cron output goes to `/var/mail/dmarcula`.
-- Check that jobs ran: `grep dmarcula /var/log/syslog` (Debian), `journalctl -u cron` or
+  with your mail server as relay. Without one, cron output goes to `/var/mail/undmarc`.
+- Check that jobs ran: `grep undmarc /var/log/syslog` (Debian), `journalctl -u cron` or
   `journalctl -u crond`, or `/var/log/cron` (EL).
 - Optional extra check that the web app answers (every 5 min):
 
   ```cron
-  */5 * * * * dmarcula  curl -fsS -m 10 -o /dev/null http://127.0.0.1:8000/healthz || echo "DMARCula is not responding"
+  */5 * * * * undmarc  curl -fsS -m 10 -o /dev/null http://127.0.0.1:8000/healthz || echo "UnDMARC is not responding"
   ```
 
 ### Polling from cron (only with `SCHEDULER_ENABLED=false`)
 
 ```cron
-*/15 * * * * dmarcula  cd /opt/dmarcula && flock -n /tmp/dmarcula-poll.lock .venv/bin/python -m app.manage poll > /dev/null
-40 4 * * *   dmarcula  cd /opt/dmarcula && flock -n /tmp/dmarcula-dns.lock  .venv/bin/python -m app.manage dns  > /dev/null
+*/15 * * * * undmarc  cd /opt/undmarc && flock -n /tmp/undmarc-poll.lock .venv/bin/python -m app.manage poll > /dev/null
+40 4 * * *   undmarc  cd /opt/undmarc && flock -n /tmp/undmarc-dns.lock  .venv/bin/python -m app.manage dns  > /dev/null
 ```
 
 `flock -n` skips a run if the previous one is still going.
@@ -116,19 +116,19 @@ Notes:
 If you prefer systemd timers, here is the backup as a timer (the other jobs follow the same pattern):
 
 ```bash
-sudo tee /etc/systemd/system/dmarcula-backup.service >/dev/null <<'EOF'
+sudo tee /etc/systemd/system/undmarc-backup.service >/dev/null <<'EOF'
 [Unit]
-Description=DMARCula database backup
+Description=UnDMARC database backup
 
 [Service]
 Type=oneshot
-User=dmarcula
-ExecStart=/bin/bash -c 'mariadb-dump --defaults-extra-file=/opt/dmarcula/.backup.my.cnf --single-transaction --quick dmarcula | gzip > /var/backups/dmarcula/dmarcula-$(date +%%F).sql.gz && find /var/backups/dmarcula -name "dmarcula-*.sql.gz" -mtime +30 -delete'
+User=undmarc
+ExecStart=/bin/bash -c 'mariadb-dump --defaults-extra-file=/opt/undmarc/.backup.my.cnf --single-transaction --quick undmarc | gzip > /var/backups/undmarc/undmarc-$(date +%%F).sql.gz && find /var/backups/undmarc -name "undmarc-*.sql.gz" -mtime +30 -delete'
 EOF
 
-sudo tee /etc/systemd/system/dmarcula-backup.timer >/dev/null <<'EOF'
+sudo tee /etc/systemd/system/undmarc-backup.timer >/dev/null <<'EOF'
 [Unit]
-Description=Daily DMARCula backup
+Description=Daily UnDMARC backup
 
 [Timer]
 OnCalendar=*-*-* 02:30
@@ -139,8 +139,8 @@ WantedBy=timers.target
 EOF
 
 sudo systemctl daemon-reload
-sudo systemctl enable --now dmarcula-backup.timer
-systemctl list-timers dmarcula-backup.timer
+sudo systemctl enable --now undmarc-backup.timer
+systemctl list-timers undmarc-backup.timer
 ```
 
 ## Backups
@@ -149,19 +149,19 @@ What to back up:
 
 | Item | Why |
 |---|---|
-| MariaDB database `dmarcula` | all reports, domains, users, mailbox settings |
-| `/opt/dmarcula/.env` | `SECRET_KEY` decrypts the stored mailbox credentials. Without it they must be re-entered. |
+| MariaDB database `undmarc` | all reports, domains, users, mailbox settings |
+| `/opt/undmarc/.env` | `SECRET_KEY` decrypts the stored mailbox credentials. Without it they must be re-entered. |
 | Apache/nginx vhost, systemd unit | configuration |
 
-The nightly dump from the cron job lands in `/var/backups/dmarcula`. Copy it off the server as
+The nightly dump from the cron job lands in `/var/backups/undmarc`. Copy it off the server as
 well (your backup system, `rsync`, `restic`, …).
 
 **Restore:**
 
 ```bash
-sudo systemctl stop dmarcula
-gunzip -c /var/backups/dmarcula/dmarcula-2026-10-13.sql.gz | sudo mariadb dmarcula
-sudo systemctl start dmarcula
+sudo systemctl stop undmarc
+gunzip -c /var/backups/undmarc/undmarc-2026-10-13.sql.gz | sudo mariadb undmarc
+sudo systemctl start undmarc
 ```
 
 **Move to a new server:** run the installer on the new server, stop the service, restore the dump,
@@ -183,7 +183,7 @@ Reports accumulate indefinitely by default. Measured on test data, the database 
 After a large first prune, give the space back to the file system:
 
 ```bash
-sudo mariadb -e "OPTIMIZE TABLE dmarcula.aggregate_records, dmarcula.aggregate_reports;"
+sudo mariadb -e "OPTIMIZE TABLE undmarc.aggregate_records, undmarc.aggregate_reports;"
 ```
 
 ## Monitoring and alerts
@@ -202,9 +202,9 @@ Uptime Kuma / Zabbix HTTP check: URL `https://dmarc.example.com/healthz`, expect
 
 | Log | Where |
 |---|---|
-| Application (startup, mailbox runs, DNS checks, errors) | `sudo journalctl -u dmarcula -f` (follow), `journalctl -u dmarcula --since today` |
+| Application (startup, mailbox runs, DNS checks, errors) | `sudo journalctl -u undmarc -f` (follow), `journalctl -u undmarc --since today` |
 | Per-mailbox processing log | UI: *Administrácia → Poštové schránky → Log spracovania* |
-| Apache | `/var/log/apache2/dmarcula-*.log` (EL: `/var/log/httpd/`) |
+| Apache | `/var/log/apache2/undmarc-*.log` (EL: `/var/log/httpd/`) |
 | nginx | `/var/log/nginx/access.log`, `error.log` |
 | MariaDB | `sudo journalctl -u mariadb` |
 
@@ -224,17 +224,17 @@ EOF
 sudo systemctl restart systemd-journald
 ```
 
-To get a plain log file instead, add these lines to the `[Service]` section of `dmarcula.service`:
+To get a plain log file instead, add these lines to the `[Service]` section of `undmarc.service`:
 
 ```ini
-StandardOutput=append:/var/log/dmarcula/dmarcula.log
-StandardError=append:/var/log/dmarcula/dmarcula.log
+StandardOutput=append:/var/log/undmarc/undmarc.log
+StandardError=append:/var/log/undmarc/undmarc.log
 ```
 
 ```bash
-sudo install -d -o dmarc -g dmarc /var/log/dmarcula
-sudo tee /etc/logrotate.d/dmarcula >/dev/null <<'EOF'
-/var/log/dmarcula/*.log {
+sudo install -d -o dmarc -g dmarc /var/log/undmarc
+sudo tee /etc/logrotate.d/undmarc >/dev/null <<'EOF'
+/var/log/undmarc/*.log {
     weekly
     rotate 12
     compress
@@ -243,7 +243,7 @@ sudo tee /etc/logrotate.d/dmarcula >/dev/null <<'EOF'
     copytruncate
 }
 EOF
-sudo systemctl daemon-reload && sudo systemctl restart dmarcula
+sudo systemctl daemon-reload && sudo systemctl restart undmarc
 ```
 
 The ingest log table in the database (shown in the UI) is cleaned by `prune` together with the reports.
@@ -257,7 +257,7 @@ The ingest log table in the database (shown in the UI) is cleaned by `prune` tog
   and reload the web server. Add a reminder or a monitoring check for the expiry date:
 
   ```bash
-  openssl x509 -enddate -noout -in /etc/ssl/dmarcula/fullchain.pem
+  openssl x509 -enddate -noout -in /etc/ssl/undmarc/fullchain.pem
   ```
 
 - **Mailbox app credentials:** an Entra ID client secret expires (max. 24 months). Note the date.
@@ -267,11 +267,11 @@ The ingest log table in the database (shown in the UI) is cleaned by `prune` tog
 ## Database maintenance
 
 MariaDB needs little care. Recommended settings for 100+ domains, in
-`/etc/mysql/mariadb.conf.d/90-dmarcula.cnf` (EL: `/etc/my.cnf.d/90-dmarcula.cnf`):
+`/etc/mysql/mariadb.conf.d/90-undmarc.cnf` (EL: `/etc/my.cnf.d/90-undmarc.cnf`):
 
 ```ini
 [mysqld]
-innodb_buffer_pool_size = 512M      # ~ size of the dmarcula database, up to 50–70 % of RAM on a dedicated server
+innodb_buffer_pool_size = 512M      # ~ size of the undmarc database, up to 50–70 % of RAM on a dedicated server
 max_connections = 50
 ```
 
@@ -279,21 +279,21 @@ Check the database size:
 
 ```bash
 sudo mariadb -e "SELECT table_name, ROUND((data_length+index_length)/1024/1024) AS MB
-                 FROM information_schema.tables WHERE table_schema='dmarcula' ORDER BY MB DESC;"
+                 FROM information_schema.tables WHERE table_schema='undmarc' ORDER BY MB DESC;"
 ```
 
-Updates of DMARCula apply schema changes automatically at startup (update = run the installer again, see [Installation](installation.md)).
+Updates of UnDMARC apply schema changes automatically at startup (update = run the installer again, see [Installation](installation.md)).
 Take a backup before every update.
 
 ## Common tasks
 
 | Task | How |
 |---|---|
-| Forgotten admin password | `sudo -u dmarcula .venv/bin/python -m app.manage set-password admin` |
+| Forgotten admin password | `sudo -u undmarc .venv/bin/python -m app.manage set-password admin` |
 | Locked out (LDAP/SSO broken) | `create-admin rescue`, log in locally (requires `LOCAL_LOGIN_ENABLED=true`), fix the settings, then delete the account |
 | Fetch reports right now | UI: *Poštové schránky → Spustiť*, or `python -m app.manage poll` |
 | Re-check all DNS now | UI: *Domény → Skontrolovať DNS*, or `python -m app.manage dns` |
 | Import historical reports | UI: *Import reportov* (zip/gz/xml/eml) |
 | Change `SECRET_KEY` | edit `.env`, restart, then re-enter the mailbox secrets (they can't be decrypted with the new key) |
-| Update the application | run the installer again: `sudo bash /opt/dmarcula/deploy/install.sh` |
-| Restart | `sudo systemctl restart dmarcula` |
+| Update the application | run the installer again: `sudo bash /opt/undmarc/deploy/install.sh` |
+| Restart | `sudo systemctl restart undmarc` |

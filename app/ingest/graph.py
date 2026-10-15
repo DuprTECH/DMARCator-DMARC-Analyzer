@@ -12,6 +12,7 @@ import msal
 from .retention import retention_days
 
 log = logging.getLogger(__name__)
+# keeps the pre-rename name: messages already marked in mailboxes must still be recognised
 PROCESSED_PROPERTY = "String {c3737793-56f7-47c0-a20a-7f90a5b05832} Name DMARCulaProcessed"
 
 

@@ -1,4 +1,4 @@
-# DMARCula documentation
+# UnDMARC documentation
 
 | Document | Audience | Contents |
 |---|---|---|
@@ -22,8 +22,8 @@ from your domain but fails authentication:
 - **Policy** `p=none` only monitors, `p=quarantine` sends failing mail to spam, and `p=reject`
   refuses it.
 
-DMARCula is developed by **DuprTECH**. Its user interface is available in Slovak and English.
+UnDMARC is developed by **DuprTECH**. Its user interface is available in Slovak and English.
 
 Receivers (Google, Microsoft, Yahoo, …) send daily **aggregate reports** to the `rua=` address.
-DMARCula collects and analyzes them. It shows who sends mail as your domains and when each
+UnDMARC collects and analyzes them. It shows who sends mail as your domains and when each
 domain is ready for a stricter policy.

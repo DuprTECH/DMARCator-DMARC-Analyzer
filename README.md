@@ -1,12 +1,15 @@
-# DMARCula – DMARC Analyzer
+# UnDMARC – DMARC Analyzer
 
-DMARCula is a self-hosted web application that collects DMARC reports from an **Exchange
+UnDMARC is a self-hosted web application that collects DMARC reports from an **Exchange
 Online (Microsoft 365)** mailbox, an IMAP mailbox or manual uploads. It parses them, works out which service
 sent each message (Microsoft 365, SendGrid, Mailchimp, …) and checks the DNS posture of every
 domain. The results are shown on a dashboard built for managing **many domains** at once.
 It's inspired by dmarcian, Valimail, EasyDMARC and parsedmarc.
 
-**Author:** [DuprTECH](https://github.com/DuprTECH) · **License:** [PolyForm Internal Use 1.0.0](LICENSE) (free for internal use in any company) · **Version:** 1.1.7 ([changelog](CHANGELOG.md)) · The user interface is available in **Slovak and English** (switch in the top bar). The documentation is in English.
+> Formerly **DMARCula**. Existing installations are renamed automatically by the installer; see
+> [upgrading from DMARCula](docs/installation.md#upgrading-from-dmarcula-before-120).
+
+**Author:** [DuprTECH](https://github.com/DuprTECH) · **License:** [PolyForm Internal Use 1.0.0](LICENSE) (free for internal use in any company) · **Version:** 1.2.0 ([changelog](CHANGELOG.md)) · The user interface is available in **Slovak and English** (switch in the top bar). The documentation is in English.
 
 📖 **Full documentation: [docs/](docs/README.md)**: [Installation](docs/installation.md) · [Operations](docs/operations.md) ·
 [Configuration](docs/configuration.md) · [Authentication](docs/authentication.md) ·
@@ -43,7 +46,7 @@ It's inspired by dmarcian, Valimail, EasyDMARC and parsedmarc.
 5. **Track changes over time**, including new failing IPs, service volumes and domain compliance.
 6. **Operate internally** with administrator/viewer roles, local/LDAP/OIDC sign-in, multilingual UI and maintenance tools.
 
-DMARCula analyzes reports and makes recommendations: it is **not an email gateway**, does not
+UnDMARC analyzes reports and makes recommendations: it is **not an email gateway**, does not
 block mail itself, and does not automatically publish DNS changes. Service/threat classification
 and policy readiness are diagnostic guidance, not proof that a message is malicious or that a
 policy change is risk-free. GeoIP describes the sending IP's estimated location, not the sender's
@@ -60,7 +63,7 @@ the demo. They contain **no real customer data**. Long pages are cropped.
 
 Compliance, volume, alignment, services, recommendations, countries and domain trends in one dashboard.
 
-![DMARCula overview dashboard](docs/screenshots/overview.png)
+![UnDMARC overview dashboard](docs/screenshots/overview.png)
 
 <details>
 <summary><strong>Domains — policy, DNS health and compliance</strong></summary>
@@ -140,12 +143,12 @@ Configure Exchange Online (Graph) or IMAP sources and inspect polling results an
 On a Linux server (Debian, Ubuntu, RHEL / Rocky / Alma, Fedora, openSUSE):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/DuprTECH/DMARCula---DMARC-Anylzer/main/deploy/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/DuprTECH/UnDMARC-DMARC-Analyzer/main/deploy/install.sh -o install.sh
 sudo bash install.sh
 ```
 
-The installer asks for the host name and admin password. It then creates the system user `dmarcula`
-and installs MariaDB, the application (`/opt/dmarcula`), the systemd service, Apache or nginx with HTTPS, and cron jobs for backups.
+The installer asks for the host name and admin password. It then creates the system user `undmarc`
+and installs MariaDB, the application (`/opt/undmarc`), the systemd service, Apache or nginx with HTTPS, and cron jobs for backups.
 Running it again updates the application.
 
 Then add the report mailbox in *Administrácia → Poštové schránky*
@@ -168,17 +171,17 @@ A local try-out with SQLite and demo data, plus the test suite, is described in
 
 ## License
 
-DMARCula is **source-available** under the [PolyForm Internal Use License 1.0.0](LICENSE).
+UnDMARC is **source-available** under the [PolyForm Internal Use License 1.0.0](LICENSE).
 Copyright © 2026 DuprTECH.
 
 In plain words (the [LICENSE](LICENSE) text is binding):
 
-- ✅ **Any company or organization may use DMARCula for its own internal operations, for free.**
+- ✅ **Any company or organization may use UnDMARC for its own internal operations, for free.**
   This includes commercial companies. You may install it, run it and adapt it for your own needs.
 - ❌ You may **not** sell, rent, sublicense or redistribute the software, or offer it to third
   parties as a hosted or paid service.
 - ❌ You may **not** publish or distribute it, or a modified version, under another name.
-  "DMARCula" and "DuprTECH" are names of the author and may not be used for other products or services.
+  "UnDMARC" and "DuprTECH" are names of the author and may not be used for other products or services.
   The author attribution shown in the application must not be removed.
 
 For any other use (redistribution, resale, hosting for customers, partnership), contact

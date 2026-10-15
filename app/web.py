@@ -19,7 +19,7 @@ from .settings_store import effective_settings
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 AUTHOR = "DuprTECH"
-AUTHOR_URL = "https://github.com/DuprTECH/DMARCula---DMARC-Anylzer"
+AUTHOR_URL = "https://github.com/DuprTECH/UnDMARC-DMARC-Analyzer"
 LICENSE_URL = AUTHOR_URL + "/blob/main/LICENSE"
 display_zone: ContextVar[ZoneInfo] = ContextVar("display_zone", default=ZoneInfo("UTC"))
 

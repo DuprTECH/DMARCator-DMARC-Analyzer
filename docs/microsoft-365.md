@@ -1,8 +1,8 @@
 # Microsoft 365 setup and report delivery
 
-This page follows a report from the receiving provider to DMARCula:
+This page follows a report from the receiving provider to UnDMARC:
 
-**receivers → `rua=` address → Exchange Online mailbox → Microsoft Graph → DMARCula**
+**receivers → `rua=` address → Exchange Online mailbox → Microsoft Graph → UnDMARC**
 
 ## 1. Report mailbox
 
@@ -15,21 +15,21 @@ New-Mailbox -Shared -Name "DMARC reports" -PrimarySmtpAddress dmarc@example.com
 
 Recommendations:
 - Make sure reports don't land in Junk. Add a transport rule or an allow entry. Alternatively,
-  set the folder in DMARCula to `JunkEmail`.
+  set the folder in UnDMARC to `JunkEmail`.
 - If the mailbox also receives other mail, route reports into `Inbox/DMARC` with an inbox rule
-  and set that folder in DMARCula.
+  and set that folder in UnDMARC.
 
 ## 2. App registration (Microsoft Graph)
 
-1. **Entra ID → App registrations → New registration**: name `DMARCula-mail`, single tenant,
+1. **Entra ID → App registrations → New registration**: name `UnDMARC-mail`, single tenant,
    no redirect URI.
 2. **Certificates & secrets**, either:
    - a **client secret** (simpler, max. 24 months), or
    - a **certificate** (recommended). Upload the public part to Entra, then paste the private key
-     (PEM) and the SHA-1 thumbprint into DMARCula under *Pokročilé* (Advanced):
+     (PEM) and the SHA-1 thumbprint into UnDMARC under *Pokročilé* (Advanced):
 
      ```bash
-     openssl req -x509 -newkey rsa:2048 -nodes -days 730 -subj "/CN=DMARCula" -keyout key.pem -out cert.pem
+     openssl req -x509 -newkey rsa:2048 -nodes -days 730 -subj "/CN=UnDMARC" -keyout key.pem -out cert.pem
      openssl x509 -in cert.pem -noout -fingerprint -sha1 | sed 's/.*=//; s/://g'   # thumbprint
      ```
 3. Note the **Application (client) ID**, the **Directory (tenant) ID**, and the **Object ID**
@@ -45,13 +45,13 @@ RBAC for Applications** to scope it:
 Connect-ExchangeOnline
 
 # 1) register the service principal in Exchange (ObjectId = Enterprise application → Object ID)
-New-ServicePrincipal -AppId <ClientId> -ObjectId <EnterpriseAppObjectId> -DisplayName "DMARCula"
+New-ServicePrincipal -AppId <ClientId> -ObjectId <EnterpriseAppObjectId> -DisplayName "UnDMARC"
 
 # 2) a scope containing only the report mailbox
-New-ManagementScope -Name "DMARCula-scope" -RecipientRestrictionFilter "PrimarySmtpAddress -eq 'dmarc@example.com'"
+New-ManagementScope -Name "UnDMARC-scope" -RecipientRestrictionFilter "PrimarySmtpAddress -eq 'dmarc@example.com'"
 
 # 3) grant the role within that scope
-New-ManagementRoleAssignment -App <ClientId> -Role "Application Mail.ReadWrite" -CustomResourceScope "DMARCula-scope"
+New-ManagementRoleAssignment -App <ClientId> -Role "Application Mail.ReadWrite" -CustomResourceScope "UnDMARC-scope"
 
 # 4) verify – InScope must be True for the report mailbox and False for anything else
 Test-ServicePrincipalAuthorization -Identity <ClientId> -Resource dmarc@example.com
@@ -74,7 +74,7 @@ changes can take 30 minutes to 2 hours to apply.
 | move processed messages and/or mark them read (default) | `Application Mail.ReadWrite` |
 | read only (turn off "mark as read", "only unread", and moving) | `Application Mail.Read` |
 
-## 4. Add the mailbox in DMARCula
+## 4. Add the mailbox in UnDMARC
 
 *Administrácia → Poštové schránky → Exchange Online (Graph)*:
 
@@ -102,7 +102,7 @@ Add-MailboxPermission -Identity dmarc@example.com -User <EnterpriseAppObjectId> 
 ```
 
 In the app registration, add **Office 365 Exchange Online → Application → `IMAP.AccessAsApp`**
-and grant admin consent. In DMARCula, choose IMAP with `outlook.office365.com:993`, SSL,
+and grant admin consent. In UnDMARC, choose IMAP with `outlook.office365.com:993`, SSL,
 authentication *OAuth2 – Exchange Online*, username `dmarc@example.com`, and the tenant ID,
 client ID and secret.
 
@@ -133,13 +133,13 @@ or a single wildcard for all of them:
 *._report._dmarc.example.com  TXT  "v=DMARC1"
 ```
 
-DMARCula checks this record for every domain and flags missing ones on the domain page.
+UnDMARC checks this record for every domain and flags missing ones on the domain page.
 
-Domains don't have to be registered anywhere in DMARCula. Each one appears automatically with its first report.
+Domains don't have to be registered anywhere in UnDMARC. Each one appears automatically with its first report.
 
 ## 7. DKIM in Microsoft 365
 
-If DMARCula shows *Microsoft 365* in the **Nesúlad** (non-compliant) category with a DKIM
+If UnDMARC shows *Microsoft 365* in the **Nesúlad** (non-compliant) category with a DKIM
 domain of `*.onmicrosoft.com`, custom DKIM signing is not enabled:
 
 ```powershell

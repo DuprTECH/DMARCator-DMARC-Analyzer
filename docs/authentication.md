@@ -23,7 +23,7 @@ accounts, LDAP / Active Directory and SSO (OpenID Connect). Changes apply immedi
   drops them again.
 - **Lock-out protection:** local sign-in can only be turned off while you are signed in via LDAP or SSO,
   which proves that it works. Emergency rollback on the server:
-  `cd /opt/dmarcula && runuser -u dmarcula -- .venv/bin/python -m app.manage auth-reset && systemctl restart dmarcula`.
+  `cd /opt/undmarc && runuser -u undmarc -- .venv/bin/python -m app.manage auth-reset && systemctl restart undmarc`.
 
 The sections below explain the individual settings; the same names are used in the UI and in `.env`.
 
@@ -60,7 +60,7 @@ LDAP and SSO users, it's more robust to remove them from the allowed group.
 ```ini
 LDAP_ENABLED=true
 LDAP_SERVER=ldaps://dc01.example.local:636
-LDAP_BIND_DN=CN=svc-dmarcula,OU=Service Accounts,DC=example,DC=local
+LDAP_BIND_DN=CN=svc-undmarc,OU=Service Accounts,DC=example,DC=local
 LDAP_BIND_PASSWORD=********
 LDAP_BASE_DN=DC=example,DC=local
 LDAP_ALLOWED_GROUP=CN=DMARC-Users,OU=Groups,DC=example,DC=local
@@ -113,13 +113,13 @@ Group membership is read from `memberOf`. On OpenLDAP this needs the `memberof` 
 ## SSO with Microsoft Entra ID
 
 1. **Entra ID → App registrations → New registration**
-   - Name `DMARCula`, *Accounts in this organizational directory only*
+   - Name `UnDMARC`, *Accounts in this organizational directory only*
    - Redirect URI: platform **Web**, `https://dmarc.example.com/auth/oidc/callback`
      (exactly `BASE_URL` + `/auth/oidc/callback`)
 2. **Certificates & secrets → New client secret**, then copy the value to `OIDC_CLIENT_SECRET`.
 3. Decide how roles are assigned:
    - **App roles (recommended):** under *App roles → Create role*, create `DMARC.Admin` (and
-     optionally `DMARC.User`). Then, under *Enterprise applications → DMARCula → Users and
+     optionally `DMARC.User`). Then, under *Enterprise applications → UnDMARC → Users and
      groups*, assign groups to the roles. Set `OIDC_ADMIN_GROUPS=DMARC.Admin`.
    - **Groups:** under *Token configuration → Add groups claim → Security groups* (ID token),
      add the claim, then set `OIDC_ADMIN_GROUPS=<group object ID>`. Users in more than 200

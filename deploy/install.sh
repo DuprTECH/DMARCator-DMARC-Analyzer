@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# DMARCula installer and updater for Linux servers with systemd.
+# UnDMARC installer and updater for Linux servers with systemd.
 #
-#   curl -fsSL https://raw.githubusercontent.com/DuprTECH/DMARCula---DMARC-Anylzer/main/deploy/install.sh -o install.sh
+#   curl -fsSL https://raw.githubusercontent.com/DuprTECH/UnDMARC-DMARC-Analyzer/main/deploy/install.sh -o install.sh
 #   sudo bash install.sh
 #
 # Supported: Debian 11+, Ubuntu 20.04+, RHEL / Rocky / AlmaLinux / CentOS Stream 8+, Fedora, openSUSE / SLES 15.
@@ -9,14 +9,14 @@
 #
 # Every question can be answered in advance with an environment variable (for unattended installs):
 #   DMARC_HOST=dmarc.example.com  WEB=apache|nginx|none  LETSENCRYPT=yes|no  LE_EMAIL=...
-#   ADMIN_PASSWORD=...  ALERT_EMAIL=...  APP_USER=dmarcula  APP_DIR=/opt/dmarcula  APP_PORT=8000  ASSUME_YES=1
+#   ADMIN_PASSWORD=...  ALERT_EMAIL=...  APP_USER=undmarc  APP_DIR=/opt/undmarc  APP_PORT=8000  ASSUME_YES=1
 set -euo pipefail
 
-REPO_URL="${REPO_URL:-https://github.com/DuprTECH/DMARCula---DMARC-Anylzer.git}"
+REPO_URL="${REPO_URL:-https://github.com/DuprTECH/UnDMARC-DMARC-Analyzer.git}"
 BRANCH="${BRANCH:-main}"
-DB_NAME="${DB_NAME:-dmarcula}"
-DB_USER="${DB_USER:-dmarcula}"
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/dmarcula}"
+DB_NAME="${DB_NAME:-undmarc}"
+DB_USER="${DB_USER:-undmarc}"
+BACKUP_DIR="${BACKUP_DIR:-/var/backups/undmarc}"
 
 # ------------------------------------------------------------------ helpers
 if [[ -t 1 ]]; then B=$'\e[1m'; G=$'\e[32m'; Y=$'\e[33m'; R=$'\e[31m'; N=$'\e[0m'; else B=; G=; Y=; R=; N=; fi
@@ -82,6 +82,139 @@ wait_healthy() {
 
 port_free() { ! (ss -ltnH 2>/dev/null | awk '{print $4}' | grep -qE "[:.]$1\$"); }
 
+# create .venv in the current directory (APP_DIR) and install the requirements
+make_venv() {
+    local py="" c
+    for c in python3.13 python3.12 python3.11 python3.10 python3; do
+        if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys, venv; sys.exit(sys.version_info < (3, 10))' 2>/dev/null; then py="$c"; break; fi
+    done
+    if [[ -n "$py" ]]; then
+        info "Using $($py --version)"
+        [[ -x .venv/bin/python ]] || as_app "$py" -m venv .venv
+    else
+        info "System Python is older than 3.10 – installing Python 3.12 with uv"
+        [[ -x /usr/local/bin/uv ]] || curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh >/dev/null
+        as_app env UV_PYTHON_INSTALL_DIR="$APP_DIR/.python" UV_CACHE_DIR="$APP_DIR/.cache/uv" /usr/local/bin/uv venv --seed --python 3.12 .venv
+    fi
+    as_app .venv/bin/python -m pip install --quiet --upgrade pip
+    as_app .venv/bin/python -m pip install --quiet -r requirements.txt
+    info "Python packages installed."
+}
+
+# /etc/systemd/system/undmarc.service from the template (APP_USER, APP_DIR, APP_PORT)
+render_unit() {
+    sed -e "s|__USER__|$APP_USER|g" -e "s|__DIR__|$APP_DIR|g" -e "s|__PORT__|$APP_PORT|g" \
+        "$APP_DIR/deploy/systemd/undmarc.service" > /etc/systemd/system/undmarc.service
+    systemctl daemon-reload
+}
+
+# render_cron DB_NAME MAILTO DUMP_BINARY – /etc/cron.d/undmarc from the template
+render_cron() {
+    sed -e "s|__USER__|$APP_USER|g" -e "s|__DIR__|$APP_DIR|g" -e "s|__DB__|$1|g" -e "s|__MAILTO__|$2|g" \
+        -e "s|mariadb-dump |$3 |" -e "s|/var/backups/undmarc|$BACKUP_DIR|g" \
+        "$APP_DIR/deploy/cron/undmarc" > /etc/cron.d/undmarc
+    chmod 644 /etc/cron.d/undmarc
+}
+
+# ------------------------------------------------------------------ rename DMARCula → UnDMARC (1.2.0)
+# Installations made before 1.2.0 use the name "dmarcula" for the service, directory, system user,
+# database, cron file and backups. Rename them once; the normal update below then takes over.
+migrate_from_dmarcula() {
+    local old_unit=/etc/systemd/system/dmarcula.service old_dir new_dir old_user url sql db_name=dmarcula
+    [[ -f $old_unit && ! -f /etc/systemd/system/undmarc.service ]] || return 0
+    old_dir="$(sed -n 's/^WorkingDirectory=//p' "$old_unit" | head -1)"
+    if [[ ! -d "$old_dir/.git" || ! -f "$old_dir/.env" ]]; then
+        warn "dmarcula.service found, but '$old_dir' is not an installation – not renamed."
+        return 0
+    fi
+    step "Renaming the DMARCula installation in $old_dir to UnDMARC"
+    APP_PORT="$(sed -n 's/.*--port \([0-9]*\).*/\1/p' "$old_unit" | head -1)"
+    APP_PORT="${APP_PORT:-8000}"
+    local mailto="" dump="mariadb-dump"
+    if [[ -f /etc/cron.d/dmarcula ]]; then
+        mailto="$(sed -n 's/^MAILTO=//p' /etc/cron.d/dmarcula | head -1)"
+        grep -q 'mysqldump ' /etc/cron.d/dmarcula && dump=mysqldump
+    fi
+    old_user="$(stat -c %U "$old_dir")"
+    systemctl disable --now dmarcula >/dev/null 2>&1 || true
+
+    # directory: …/dmarcula → …/undmarc (the virtualenv has absolute paths, so it is rebuilt)
+    new_dir="$old_dir"
+    if [[ "$(basename "$old_dir")" == dmarcula && ! -e "$(dirname "$old_dir")/undmarc" ]]; then
+        new_dir="$(dirname "$old_dir")/undmarc"
+        mv "$old_dir" "$new_dir"
+        rm -rf "$new_dir/.venv"
+        info "Directory: $new_dir"
+    fi
+    APP_DIR="$new_dir"
+
+    # system user (and its group) dmarcula → undmarc
+    APP_USER="$old_user"
+    if [[ "$old_user" == dmarcula ]] && ! id undmarc >/dev/null 2>&1; then
+        usermod -l undmarc dmarcula
+        if getent group dmarcula >/dev/null; then groupmod -n undmarc dmarcula; fi
+        APP_USER=undmarc
+        info "System user: undmarc"
+    fi
+    if [[ "$(getent passwd "$APP_USER" | cut -d: -f6)" == "$old_dir" ]]; then usermod -d "$new_dir" "$APP_USER"; fi
+
+    # MariaDB database and account dmarcula → undmarc (all tables move in one atomic statement)
+    url="$(env_get DATABASE_URL)"
+    sql="$(command -v mariadb || command -v mysql || true)"
+    if [[ "$url" == mysql*://dmarcula:*@*/dmarcula && -n "$sql" ]] && "$sql" -e 'SELECT 1' >/dev/null 2>&1 \
+            && [[ -z "$("$sql" -N -e "SHOW DATABASES LIKE 'undmarc'")" ]]; then
+        local t h renames=""
+        for t in $("$sql" -N -e "SELECT table_name FROM information_schema.tables WHERE table_schema='dmarcula'"); do
+            renames+="${renames:+, }\`dmarcula\`.\`$t\` TO \`undmarc\`.\`$t\`"
+        done
+        "$sql" -e "CREATE DATABASE \`undmarc\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+        if [[ -z "$renames" ]] || "$sql" -e "SET FOREIGN_KEY_CHECKS=0; RENAME TABLE $renames"; then
+            for h in localhost 127.0.0.1; do
+                if [[ -n "$("$sql" -N -e "SELECT 1 FROM mysql.user WHERE user='dmarcula' AND host='$h'")" ]]; then
+                    "$sql" -e "RENAME USER 'dmarcula'@'$h' TO 'undmarc'@'$h'; GRANT ALL PRIVILEGES ON \`undmarc\`.* TO 'undmarc'@'$h'"
+                fi
+            done
+            "$sql" -e "FLUSH PRIVILEGES; DROP DATABASE \`dmarcula\`"
+            env_set DATABASE_URL "$(sed -e 's|://dmarcula:|://undmarc:|' -e 's|/dmarcula$|/undmarc|' <<<"$url")"
+            if [[ -f "$APP_DIR/.backup.my.cnf" ]]; then sed -i 's/^user=dmarcula$/user=undmarc/' "$APP_DIR/.backup.my.cnf"; fi
+            db_name=undmarc
+            info "Database and account: undmarc"
+        else
+            "$sql" -e "DROP DATABASE \`undmarc\`"
+            warn "Database tables could not be moved – the database stays 'dmarcula' (the application works with it)."
+        fi
+    elif [[ "$url" == mysql*/dmarcula ]]; then
+        warn "MariaDB root access not available – the database stays 'dmarcula' (the application works with it)."
+    fi
+    if [[ "$(env_get APP_NAME)" == DMARCula ]]; then env_set APP_NAME UnDMARC; fi
+
+    # code from the renamed repository
+    as_app git -C "$APP_DIR" remote set-url origin "$REPO_URL"
+    as_app git -C "$APP_DIR" pull --ff-only
+    cd "$APP_DIR"
+    make_venv
+
+    # backups: /var/backups/dmarcula → /var/backups/undmarc
+    if [[ -d /var/backups/dmarcula && ! -e "$BACKUP_DIR" ]]; then
+        mv /var/backups/dmarcula "$BACKUP_DIR"
+        local f
+        for f in "$BACKUP_DIR"/dmarcula-*; do
+            if [[ -e "$f" ]]; then mv "$f" "$BACKUP_DIR/undmarc-${f##*/dmarcula-}"; fi
+        done
+        chown -R "$APP_USER:$APP_USER" "$BACKUP_DIR"
+    fi
+    if [[ -f /etc/cron.d/dmarcula ]]; then
+        rm -f /etc/cron.d/dmarcula
+        render_cron "$db_name" "$mailto" "$dump"
+    fi
+
+    # service dmarcula → undmarc
+    rm -f "$old_unit"
+    render_unit
+    systemctl enable undmarc >/dev/null 2>&1
+    info "Service: undmarc (web server configuration is unchanged – it only points to 127.0.0.1:${APP_PORT})"
+}
+
 # ------------------------------------------------------------------ checks
 [[ $EUID -eq 0 ]] || die "Run as root:  sudo bash install.sh"
 [[ -d /run/systemd/system ]] || die "systemd is required. For other systems see docs/installation.md."
@@ -101,25 +234,26 @@ for p in /usr/local/hestia:HestiaCP /usr/local/vesta:VestaCP /usr/local/cpanel:c
     [[ -e "${p%%:*}" ]] && { PANEL="${p##*:}"; break; }
 done
 
-printf '%sDMARCula installer%s – %s\n' "$B" "$N" "${PRETTY_NAME:-$ID}"
+printf '%sUnDMARC installer%s – %s\n' "$B" "$N" "${PRETTY_NAME:-$ID}"
 cd /    # the app user must be able to access the working directory
+migrate_from_dmarcula
 
 # ------------------------------------------------------------------ existing install → update
-APP_USER="${APP_USER:-dmarcula}"
-# /home/dmarc/dmarcula: layout used by early versions
-for candidate in "${APP_DIR:-}" /opt/dmarcula /home/dmarc/dmarcula "/home/$APP_USER/dmarcula"; do
-    if [[ -n "$candidate" && -f "$candidate/.env" && -d "$candidate/.git" && -f /etc/systemd/system/dmarcula.service ]]; then
+APP_USER="${APP_USER:-undmarc}"
+# /home/dmarc/undmarc: layout used by early versions (as /home/dmarc/dmarcula, renamed above)
+for candidate in "${APP_DIR:-}" /opt/undmarc /home/dmarc/undmarc "/home/$APP_USER/undmarc"; do
+    if [[ -n "$candidate" && -f "$candidate/.env" && -d "$candidate/.git" && -f /etc/systemd/system/undmarc.service ]]; then
         APP_DIR="$candidate"
         APP_USER="$(stat -c %U "$APP_DIR")"
         step "Existing installation found in $APP_DIR – updating"
         cd "$APP_DIR"
         as_app git pull --ff-only
         as_app .venv/bin/pip install --quiet --upgrade -r requirements.txt
-        systemctl restart dmarcula
-        APP_PORT="$(sed -n 's/.*--port \([0-9]*\).*/\1/p' /etc/systemd/system/dmarcula.service | head -1)"
+        systemctl restart undmarc
+        APP_PORT="$(sed -n 's/.*--port \([0-9]*\).*/\1/p' /etc/systemd/system/undmarc.service | head -1)"
         APP_PORT="${APP_PORT:-8000}"
         info "Version: $(as_app .venv/bin/python -m app.manage version)"
-        wait_healthy || die "Service did not come up – check: journalctl -u dmarcula -n 50"
+        wait_healthy || die "Service did not come up – check: journalctl -u undmarc -n 50"
         info "Updated and running."
         exit 0
     fi
@@ -130,7 +264,7 @@ step "A few questions (press Enter for the default)"
 ask DMARC_HOST "Host name of the web interface (DNS must point to this server), e.g. dmarc.example.com" "$(hostname -f 2>/dev/null || hostname)"
 [[ -n "$DMARC_HOST" ]] || die "A host name is required."
 
-ask APP_DIR "Install directory" "/opt/dmarcula"
+ask APP_DIR "Install directory" "/opt/undmarc"
 [[ "$APP_DIR" == *public_html* || "$APP_DIR" == /var/www* ]] && die "Do not install into a web root ($APP_DIR) – .env and the database password would be downloadable."
 
 if [[ -n "$PANEL" ]]; then
@@ -248,22 +382,8 @@ else
 fi
 cd "$APP_DIR"
 
-PY=""
-for c in python3.13 python3.12 python3.11 python3.10 python3; do
-    if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys, venv; sys.exit(sys.version_info < (3, 10))' 2>/dev/null; then PY="$c"; break; fi
-done
 step "Python environment"
-if [[ -n "$PY" ]]; then
-    info "Using $($PY --version)"
-    [[ -x .venv/bin/python ]] || as_app "$PY" -m venv .venv
-else
-    info "System Python is older than 3.10 – installing Python 3.12 with uv"
-    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh >/dev/null
-    as_app env UV_PYTHON_INSTALL_DIR="$APP_DIR/.python" UV_CACHE_DIR="$APP_DIR/.cache/uv" /usr/local/bin/uv venv --seed --python 3.12 .venv
-fi
-as_app .venv/bin/pip install --quiet --upgrade pip
-as_app .venv/bin/pip install --quiet -r requirements.txt
-info "Python packages installed."
+make_venv
 
 # ------------------------------------------------------------------ configuration
 step "Configuration (.env)"
@@ -284,13 +404,11 @@ printf '[client]\nuser=%s\npassword=%s\nhost=127.0.0.1\n' "$DB_USER" "$DB_PASS" 
 chown "$APP_USER:$APP_USER" "$APP_DIR/.backup.my.cnf"; chmod 600 "$APP_DIR/.backup.my.cnf"
 
 # ------------------------------------------------------------------ systemd service
-step "systemd service 'dmarcula'"
-sed -e "s|__USER__|$APP_USER|g" -e "s|__DIR__|$APP_DIR|g" -e "s|__PORT__|$APP_PORT|g" \
-    deploy/systemd/dmarcula.service > /etc/systemd/system/dmarcula.service
-systemctl daemon-reload
-systemctl enable --now dmarcula >/dev/null 2>&1
-systemctl restart dmarcula
-wait_healthy || die "The service did not start – check: journalctl -u dmarcula -n 50"
+step "systemd service 'undmarc'"
+render_unit
+systemctl enable --now undmarc >/dev/null 2>&1
+systemctl restart undmarc
+wait_healthy || die "The service did not start – check: journalctl -u undmarc -n 50"
 info "Running on 127.0.0.1:${APP_PORT}."
 env_set ADMIN_PASSWORD ""      # only needed for the first start; the account now exists in the database
 
@@ -298,7 +416,7 @@ env_set ADMIN_PASSWORD ""      # only needed for the first start; the account no
 selinux_proxy() {
     if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then setsebool -P httpd_can_network_connect 1; fi
 }
-render() { sed -e "s|__HOST__|$DMARC_HOST|g" -e "s|__PORT__|$APP_PORT|g" "deploy/$1/dmarcula.conf"; }
+render() { sed -e "s|__HOST__|$DMARC_HOST|g" -e "s|__PORT__|$APP_PORT|g" "deploy/$1/undmarc.conf"; }
 
 if [[ "$WEB" != none ]] && grep -rqsE "^\s*(ServerName|ServerAlias|server_name)\s.*\b${DMARC_HOST//./\\.}\b" \
         /etc/apache2 /etc/httpd /etc/nginx 2>/dev/null \
@@ -311,14 +429,14 @@ case "$WEB:$FAMILY" in
     apache:debian)
         step "Apache"
         a2enmod -q proxy proxy_http headers ssl >/dev/null
-        render apache > /etc/apache2/sites-available/dmarcula.conf
-        a2ensite -q dmarcula >/dev/null
+        render apache > /etc/apache2/sites-available/undmarc.conf
+        a2ensite -q undmarc >/dev/null
         systemctl enable --now apache2 >/dev/null 2>&1
         apache2ctl configtest || die "Apache configuration test failed."
         systemctl restart apache2 ;;
     apache:rhel)
         step "Apache"
-        render apache > /etc/httpd/conf.d/dmarcula.conf
+        render apache > /etc/httpd/conf.d/undmarc.conf
         selinux_proxy
         systemctl enable --now httpd >/dev/null 2>&1
         apachectl configtest || die "Apache configuration test failed."
@@ -326,20 +444,20 @@ case "$WEB:$FAMILY" in
     apache:suse)
         step "Apache"
         for m in proxy proxy_http headers ssl; do a2enmod "$m" >/dev/null 2>&1 || true; done
-        render apache > /etc/apache2/vhosts.d/dmarcula.conf
+        render apache > /etc/apache2/vhosts.d/undmarc.conf
         systemctl enable --now apache2 >/dev/null 2>&1
         apachectl configtest || die "Apache configuration test failed."
         systemctl restart apache2 ;;
     nginx:debian)
         step "nginx"
-        render nginx > /etc/nginx/sites-available/dmarcula
-        ln -sf /etc/nginx/sites-available/dmarcula /etc/nginx/sites-enabled/dmarcula
+        render nginx > /etc/nginx/sites-available/undmarc
+        ln -sf /etc/nginx/sites-available/undmarc /etc/nginx/sites-enabled/undmarc
         systemctl enable --now nginx >/dev/null 2>&1
         nginx -t || die "nginx configuration test failed."
         systemctl reload nginx ;;
     nginx:rhel)
         step "nginx"
-        render nginx > /etc/nginx/conf.d/dmarcula.conf
+        render nginx > /etc/nginx/conf.d/undmarc.conf
         selinux_proxy
         systemctl enable --now nginx >/dev/null 2>&1
         nginx -t || die "nginx configuration test failed."
@@ -347,7 +465,7 @@ case "$WEB:$FAMILY" in
     nginx:suse)
         step "nginx"
         install -d /etc/nginx/vhosts.d
-        render nginx > /etc/nginx/vhosts.d/dmarcula.conf
+        render nginx > /etc/nginx/vhosts.d/undmarc.conf
         systemctl enable --now nginx >/dev/null 2>&1
         nginx -t || die "nginx configuration test failed."
         systemctl reload nginx ;;
@@ -371,8 +489,8 @@ if [[ "$LETSENCRYPT" == yes && ( "$WEB" == apache || "$WEB" == nginx ) ]]; then
         SCHEME=https
         env_set BASE_URL "https://${DMARC_HOST}"
         env_set COOKIE_SECURE true
-        systemctl restart dmarcula
-        wait_healthy || warn "Service restart after enabling HTTPS took too long – check journalctl -u dmarcula."
+        systemctl restart undmarc
+        wait_healthy || warn "Service restart after enabling HTTPS took too long – check journalctl -u undmarc."
     else
         warn "Let's Encrypt failed (is ${DMARC_HOST} public and port 80 reachable?). The site works over HTTP for now."
         warn "For an internal host name use your own certificate – see docs/installation.md (Apache / nginx sections)."
@@ -380,12 +498,9 @@ if [[ "$LETSENCRYPT" == yes && ( "$WEB" == apache || "$WEB" == nginx ) ]]; then
 fi
 
 # ------------------------------------------------------------------ cron
-step "Scheduled jobs (/etc/cron.d/dmarcula)"
+step "Scheduled jobs (/etc/cron.d/undmarc)"
 install -d -o "$APP_USER" -g "$APP_USER" -m 750 "$BACKUP_DIR"
-sed -e "s|__USER__|$APP_USER|g" -e "s|__DIR__|$APP_DIR|g" -e "s|__MAILTO__|${ALERT_EMAIL:-}|g" \
-    -e "s|mariadb-dump |$(basename "$DUMP_CMD") |" -e "s|/var/backups/dmarcula|$BACKUP_DIR|g" \
-    deploy/cron/dmarcula > /etc/cron.d/dmarcula
-chmod 644 /etc/cron.d/dmarcula
+render_cron "$DB_NAME" "${ALERT_EMAIL:-}" "$(basename "$DUMP_CMD")"
 info "Backups go to ${BACKUP_DIR}."
 
 # ------------------------------------------------------------------ done
@@ -408,7 +523,7 @@ if [[ "$WEB" == none || "$WEB" == existing ]]; then
                      proxy_set_header X-Forwarded-Proto \$scheme; client_max_body_size 60m; }
 
     With HTTPS, set BASE_URL=https://${DMARC_HOST} and COOKIE_SECURE=true in ${APP_DIR}/.env
-    and run: systemctl restart dmarcula
+    and run: systemctl restart undmarc
 EOF
 fi
 cat <<EOF
@@ -424,7 +539,7 @@ cat <<EOF
          (guide: docs/authentication.md)
 
     Useful commands:
-      systemctl status dmarcula              service state
-      journalctl -u dmarcula -f              application log
+      systemctl status undmarc              service state
+      journalctl -u undmarc -f              application log
       sudo bash ${APP_DIR}/deploy/install.sh update to the latest version
 EOF

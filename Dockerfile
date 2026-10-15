@@ -7,8 +7,8 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY app ./app
-RUN useradd --system --uid 10001 dmarcula && mkdir -p /app/data && chown dmarcula /app/data
-USER dmarcula
+RUN useradd --system --uid 10001 undmarc && mkdir -p /app/data && chown undmarc /app/data
+USER undmarc
 
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"

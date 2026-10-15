@@ -1,10 +1,10 @@
 services:
-  dmarcula:
+  undmarc:
     build: .
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://dmarcula:${POSTGRES_PASSWORD:-dmarcula}@db:5432/dmarcula
+      DATABASE_URL: postgresql+psycopg://undmarc:${POSTGRES_PASSWORD:-undmarc}@db:5432/undmarc
     ports:
       - "8000:8000"
     volumes:
@@ -17,13 +17,13 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: dmarcula
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dmarcula}
-      POSTGRES_DB: dmarcula
+      POSTGRES_USER: undmarc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-undmarc}
+      POSTGRES_DB: undmarc
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dmarcula"]
+      test: ["CMD-SHELL", "pg_isready -U undmarc"]
       interval: 5s
       retries: 10
 

@@ -1,10 +1,10 @@
-# DMARCula systemd unit.
+# UnDMARC systemd unit.
 # Placeholders (replaced by deploy/install.sh, or edit by hand):
 #   __USER__  system user the app runs as        (e.g. dmarc)
-#   __DIR__   application directory              (e.g. /home/dmarc/dmarcula)
+#   __DIR__   application directory              (e.g. /home/dmarc/undmarc)
 #   __PORT__  local port the reverse proxy uses  (e.g. 8000)
 [Unit]
-Description=DMARCula DMARC analyzer
+Description=UnDMARC DMARC analyzer
 After=network-online.target mariadb.service
 Wants=network-online.target
 

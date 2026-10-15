@@ -37,6 +37,7 @@ def verify_password(password: str, stored: str | None) -> bool:
 
 
 def _fernet() -> Fernet:
+    # the salt keeps the pre-rename name: changing it would make stored mailbox credentials unreadable
     key = hashlib.sha256(("dmarcula-config:" + settings.secret_key).encode()).digest()
     return Fernet(base64.urlsafe_b64encode(key))
 

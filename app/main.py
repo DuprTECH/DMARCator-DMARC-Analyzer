@@ -24,7 +24,7 @@ from .settings_store import effective_settings
 from .web import display_zone, render
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-log = logging.getLogger("dmarcula")
+log = logging.getLogger("undmarc")
 settings = get_settings()
 scheduler = BackgroundScheduler(timezone="UTC")
 
@@ -47,7 +47,7 @@ async def lifespan(_: FastAPI):
         raise RuntimeError("SECRET_KEY must be set to a random string of at least 16 characters")
     if settings.secret_key.startswith("change-me"):
         log.warning("SECRET_KEY is the default value – set a long random SECRET_KEY in production!")
-    log.info("DMARCula %s starting", __version__)
+    log.info("UnDMARC %s starting", __version__)
     init_db()
     bootstrap_admin()
     if settings.scheduler_enabled:
@@ -67,7 +67,7 @@ app = FastAPI(title=settings.app_name, version=__version__, lifespan=lifespan, d
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.secret_key,
-    session_cookie="dmarcula_session",
+    session_cookie="undmarc_session",
     max_age=settings.session_max_age_hours * 3600,
     same_site="lax",
     https_only=settings.cookie_secure,

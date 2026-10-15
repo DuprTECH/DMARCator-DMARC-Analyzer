@@ -48,7 +48,7 @@
         {{ check('ldap_tls_verify', _('Overovať certifikát servera')) }}</div>
       {{ field('ldap_base_dn', 'Base DN', '', 'DC=example,DC=local') }}
       {{ field('ldap_ca_file', _('Súbor s CA certifikátom (PEM)'), _('iba pri internej CA'), '/etc/ssl/certs/internal-ca.pem') }}
-      {{ field('ldap_bind_dn', _('Servisný účet (Bind DN)'), _('prázdne = prihlásenie priamo menom používateľa'), 'CN=svc-dmarcula,OU=Service,DC=example,DC=local') }}
+      {{ field('ldap_bind_dn', _('Servisný účet (Bind DN)'), _('prázdne = prihlásenie priamo menom používateľa'), 'CN=svc-undmarc,OU=Service,DC=example,DC=local') }}
       {{ secret('ldap_bind_password', _('Heslo servisného účtu')) }}
       {{ field('ldap_upn_suffix', _('UPN suffix'), _('bez servisného účtu: meno → meno@suffix'), 'example.local') }}
       {{ field('ldap_user_filter', _('Filter používateľa'), _('{username} sa nahradí zadaným menom')) }}

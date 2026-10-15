@@ -72,9 +72,9 @@
       <li>API permissions → Microsoft Graph → <b>Application</b> → <code>Mail.ReadWrite</code> ({{ _('stačí Mail.Read, ak nepresúvate ani neoznačujete správy') }}) → Grant admin consent.</li>
       <li>Certificates &amp; secrets → {{ _('nový client secret alebo certifikát.') }}</li>
       <li>{{ _('Obmedzte prístup len na DMARC schránku (Exchange Online PowerShell – RBAC for Applications):') }}
-<pre>New-ServicePrincipal -AppId &lt;ClientId&gt; -ObjectId &lt;EnterpriseAppObjectId&gt; -DisplayName "DMARCula"
-New-ManagementScope -Name "DMARCula" -RecipientRestrictionFilter "PrimarySmtpAddress -eq 'dmarc@contoso.com'"
-New-ManagementRoleAssignment -App &lt;ClientId&gt; -Role "Application Mail.ReadWrite" -CustomResourceScope "DMARCula"</pre>
+<pre>New-ServicePrincipal -AppId &lt;ClientId&gt; -ObjectId &lt;EnterpriseAppObjectId&gt; -DisplayName "UnDMARC"
+New-ManagementScope -Name "UnDMARC" -RecipientRestrictionFilter "PrimarySmtpAddress -eq 'dmarc@contoso.com'"
+New-ManagementRoleAssignment -App &lt;ClientId&gt; -Role "Application Mail.ReadWrite" -CustomResourceScope "UnDMARC"</pre>
         {{ _('Pri RBAC for Applications odstráňte Graph povolenie Mail.ReadWrite z App registration (inak platí pre celý tenant).') }}</li>
     </ol>
   </details>

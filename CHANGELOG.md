@@ -22,7 +22,8 @@ The running version is shown in the page footer, by `GET /healthz` and by `pytho
   GeoLite2 databases were configured; step-by-step GeoLite2 setup in the configuration guide.
 - **Domains from a file or from Microsoft 365:** *Add domains manually* accepts a CSV / TXT file
   (e.g. the Microsoft 365 admin-center export), and *Import domains from Microsoft 365* reads all
-  verified tenant domains via Graph (`Domain.Read.All`). Imported domains are DNS-checked right away
+  verified tenant domains via Graph (`Domain.Read.All`); with the mailbox option *Import domains from
+  Microsoft 365 automatically* this also runs with every daily DNS check. Imported domains are DNS-checked right away
   and then daily, so domains without DMARC or DKIM show up even before any report arrives.
 - Messages without a report (ordinary mail, forwards, auto-replies, forensic reports that identify
   no domain, IP or original message) are logged as *info* instead of *error* and can be moved to

@@ -75,6 +75,7 @@ def test_full_flow():
         assert r.status_code == 303
         edit = client.get("/admin/sources/1").text
         assert "s3cr3t" not in edit and "uložené" in edit
+        assert 'name="sync_domains"' in edit and 'name="sync_domains" checked' not in edit
 
 
 def test_mailbox_retention_form():

@@ -280,3 +280,37 @@ def test_cleanup_runs_without_new_messages_and_logs_failure(monkeypatch):
     assert "cleanup permission denied" in service.run_source(sid)
     with session_scope() as db:
         assert db.get(MailSource, sid).last_status == "error"
+
+
+def test_tenant_domain_sync(monkeypatch):
+    from app.models import Domain
+    from app.security import encrypt_json
+
+    init_db()
+
+    class FakeGraph:
+        def __init__(self, cfg):
+            if cfg["tenant_id"] == "broken":
+                raise RuntimeError("HTTP 403 Authorization_RequestDenied")
+            self.cfg = cfg
+
+        def tenant_domains(self):
+            return ["sync-a.sk", "sync-b.com"]
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(service, "GraphMailbox", FakeGraph)
+    with session_scope() as db:
+        for name, tenant, sync in [("sync-on", "t1", True), ("sync-off", "t2", False), ("sync-broken", "broken", True)]:
+            db.add(MailSource(name=name, kind="graph", enabled=True,
+                              config_encrypted=encrypt_json({"tenant_id": tenant, "sync_domains": sync})))
+    assert service.sync_tenant_domains() == 2
+    assert service.sync_tenant_domains() == 0  # already there
+    with session_scope() as db:
+        assert {"sync-a.sk", "sync-b.com"} <= set(db.scalars(select(Domain.name)))
+        logs = dict(db.execute(select(IngestLog.source, IngestLog.message)
+                               .where(IngestLog.source.in_(["sync-on", "sync-off", "sync-broken"]))).all())
+    assert "sync-off" not in logs
+    assert logs["sync-on"].startswith("Domény z Microsoft 365: 2 overených")
+    assert "Authorization_RequestDenied" in logs["sync-broken"]

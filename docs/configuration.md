@@ -158,6 +158,7 @@ variables at the `.mmdb` files. Without them, the country map and ASN columns st
 | Report folder | ✔ | ✔ | `Inbox`, `Inbox/DMARC`, … (IMAP: `INBOX`). |
 | Move processed to | ✔ | ✔ | Created if missing. Empty means messages aren't moved. |
 | Move failed to | ✔ | ✔ | Messages whose report could not be read or stored (logged as *error*). |
+| Import domains from Microsoft 365 automatically | ✔ | – | Adds the tenant's verified domains after saving and with every daily DNS check. Needs `Domain.Read.All` ([details](microsoft-365.md#importing-tenant-domains)). |
 | Move messages without a report to | ✔ | ✔ | Ordinary mail, forwards, auto-replies and forensic reports that identify nothing (logged as *info*). Empty means the same folder as failed messages. |
 | Only unread / mark as read | ✔ | ✔ | With "only unread" off, the whole folder is processed. Duplicates are skipped. |
 | Automatically delete old processed messages / retention days | ✔ | – | Off by default; 30 days suggested, allowed range 1–3650 days. Global Microsoft Graph only. Requires a dedicated processed folder separate from input and failed folders. |

@@ -117,6 +117,11 @@ the tenant (`GET /domains`) with the app of the Exchange Online mailbox. Add the
 consent**. It only reads domain names; it changes nothing. Without it the import shows
 `HTTP 403 Authorization_RequestDenied`. The domains are then checked daily like all others.
 
+To keep the list up to date automatically, tick **Import domains from Microsoft 365 automatically**
+in the mailbox settings. The domains are read right after saving and then with every daily DNS
+check; new ones are checked in the same run. Domains removed from the tenant stay in DMARCator
+with their report history. The result (or the error) appears in the mailbox processing log.
+
 ## 6. DNS records for your domains
 
 | Record | Value | Purpose |

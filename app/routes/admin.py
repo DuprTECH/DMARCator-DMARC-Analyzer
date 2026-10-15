@@ -115,6 +115,7 @@ async def source_save(request: Request, db: Session = Depends(get_db)):
     for k in BOOL_FIELDS:
         cfg[k] = form.get(k) == "on"
     cfg["cleanup_enabled"] = kind == "graph" and form.get("cleanup_enabled") == "on"
+    cfg["sync_domains"] = kind == "graph" and form.get("sync_domains") == "on"
     if cfg["cleanup_enabled"]:
         from ..ingest.retention import retention_days
 
@@ -135,6 +136,8 @@ async def source_save(request: Request, db: Session = Depends(get_db)):
     src.enabled = form.get("enabled") == "on"
     src.config_encrypted = encrypt_json(cfg)
     db.commit()
+    if cfg["sync_domains"] and src.enabled:
+        threading.Thread(target=refresh_dns, daemon=True).start()  # reads the tenant domains, then checks DNS
     flash(request, f"Zdroj {src.name} uložený.")
     return RedirectResponse("/admin/sources", 303)
 

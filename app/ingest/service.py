@@ -323,10 +323,53 @@ def check_and_save(db: Session, dom: Domain) -> dict:
     return result
 
 
+def sync_tenant_domains() -> int:
+    """Add the verified domains of every enabled Exchange Online mailbox with "sync_domains" on.
+    Domains removed from the tenant stay (their report history is kept). Returns how many were added."""
+    with session_scope() as db:
+        sources = [(s.name, s.config_encrypted) for s in db.scalars(
+            select(MailSource).where(MailSource.kind == "graph", MailSource.enabled.is_(True)))]
+    added = 0
+    for name, encrypted in sources:
+        try:
+            cfg = decrypt_json(encrypted)
+        except Exception:  # noqa: BLE001 – unreadable settings are reported when the mailbox runs
+            continue
+        if not cfg.get("sync_domains"):
+            continue
+        box = None
+        try:
+            box = GraphMailbox(cfg)
+            names = set(box.tenant_domains())
+        except Exception as exc:  # noqa: BLE001 – one tenant must not stop the others or the DNS check
+            log.exception("domain sync failed for %s", name)
+            with session_scope() as db:
+                add_log(db, name, f"Domény z Microsoft 365: {_short_error(exc)}", "error")
+            continue
+        finally:
+            if box:
+                box.close()
+        with session_scope() as db:
+            existing = set(db.scalars(select(Domain.name).where(Domain.name.in_(names)))) if names else set()
+            new = sorted(names - existing)
+            for n in new:
+                db.add(Domain(name=n))
+            add_log(db, name, f"Domény z Microsoft 365: {len(names)} overených, pridané {len(new)}")
+        added += len(new)
+    if added:
+        invalidate()
+    return added
+
+
 def refresh_dns(only_missing: bool = False):
     if not _dns_lock.acquire(blocking=False):
         return
     try:
+        if not only_missing:  # the daily full check also picks up new Microsoft 365 domains
+            try:
+                sync_tenant_domains()
+            except Exception:  # noqa: BLE001
+                log.exception("domain sync failed")
         with session_scope() as db:
             q = select(Domain.id, Domain.name)
             if only_missing:

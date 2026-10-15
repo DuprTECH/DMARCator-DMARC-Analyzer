@@ -143,7 +143,7 @@
   ]);
   DM.hbar(document.getElementById("ch-spf"), [
     {name: "{{ _('0–7 lookupov') }}", value: P.spf_lookups.le7, color: "good"},
-    {name: "{{ _('8–10 (blízko limitu)') }}", value: P.spf_lookups["8-10"], color: "warning"},
+    {name: "{{ _('8–10 (v limite)') }}", value: P.spf_lookups["8-10"], color: "s3"},
     {name: "{{ _('viac ako 10 (permerror)') }}", value: P.spf_lookups.gt10, color: "critical"},
     {name: "{{ _('bez SPF') }}", value: P.spf_lookups.none, color: "muted"},
   ]);

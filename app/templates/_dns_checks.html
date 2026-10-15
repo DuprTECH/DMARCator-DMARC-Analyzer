@@ -15,7 +15,7 @@
     {{ issues(dns.dmarc.issues) }}
   </div>
   <div class="check">
-    <div class="check-head"><strong>SPF</strong><span>{% if dns.spf.record %}<span class="badge plain {{ 'error' if dns.spf.lookups > 10 else ('warn' if dns.spf.lookups >= 8 else 'ok') }}">{{ _('{n}/10 lookupov', n=dns.spf.lookups) }}</span> {% endif %}{{ status_badge(dns.spf.status) }}</span></div>
+    <div class="check-head"><strong>SPF</strong><span>{% if dns.spf.record %}<span class="badge plain {{ 'error' if dns.spf.lookups > 10 else 'ok' }}">{{ _('{n}/10 lookupov', n=dns.spf.lookups) }}</span> {% endif %}{{ status_badge(dns.spf.status) }}</span></div>
     {% if dns.spf.record %}<div class="record">{{ dns.spf.record }}</div>{% endif %}
     {% if dns.spf.includes %}<p class="sub" style="margin:0 0 8px">Include: {{ dns.spf.includes|join(', ') }}</p>{% endif %}
     {{ issues(dns.spf.issues) }}

@@ -49,3 +49,17 @@ def test_reports_prove_record_hidden_by_split_horizon_dns(monkeypatch):
         r = report_evidence(db, "example.sk", dns_checks.check_domain("example.sk"))
     assert r["dmarc"]["status"] == "unknown" and r["spf"]["status"] == "unknown"
     assert "split-horizon" in r["dmarc"]["issues"][0]["msg"] and r["grade"] == "?"
+
+
+def test_spf_lookups_up_to_ten_are_not_a_warning(monkeypatch):
+    from app.analysis import dns_checks
+
+    def zone(n):
+        records = {"example.org": "v=spf1 " + " ".join(f"include:i{i}.example.org" for i in range(n)) + " -all"}
+        records.update({f"i{i}.example.org": "v=spf1 ip4:192.0.2.1 -all" for i in range(n)})
+        return lambda name: [records[name]] if name in records else None
+
+    for n, status in ((9, "ok"), (10, "ok"), (11, "error")):
+        monkeypatch.setattr(dns_checks, "txt", zone(n))
+        r = dns_checks.check_spf("example.org")
+        assert (r["lookups"], r["status"]) == (n, status)

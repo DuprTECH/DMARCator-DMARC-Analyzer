@@ -192,8 +192,8 @@ def check_spf(domain: str) -> dict:
         issues.append(_issue("warn", "Chýba koncový mechanizmus all."))
     if state["lookups"] > 10:
         issues.append(_issue("error", f"{state['lookups']} DNS lookupov – limit je 10 (permerror). Zvážte SPF flattening."))
-    elif state["lookups"] >= 8:
-        issues.append(_issue("warn", f"{state['lookups']} DNS lookupov – blízko limitu 10."))
+    elif state["lookups"] >= 8:  # still within the limit – a note, not a warning
+        issues.append(_issue("info", f"{state['lookups']} DNS lookupov – blízko limitu 10."))
     if state["void"] > 2:
         issues.append(_issue("error", f"{state['void']} void lookupov – limit je 2."))
     if len(record) > 450:

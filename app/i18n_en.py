@@ -104,7 +104,7 @@ EN: dict[str, str] = {
     "kratší ako 1024": "shorter than 1024",
     "bez DKIM": "no DKIM",
     "0–7 lookupov": "0–7 lookups",
-    "8–10 (blízko limitu)": "8–10 (close to the limit)",
+    "8–10 (v limite)": "8–10 (within the limit)",
     "viac ako 10 (permerror)": "more than 10 (permerror)",
     "bez SPF": "no SPF",
     "Iné": "Other",

@@ -25,6 +25,7 @@ The running version is shown in the page footer, by `GET /healthz` and by `pytho
   verified tenant domains via Graph (`Domain.Read.All`); with the mailbox option *Import domains from
   Microsoft 365 automatically* this also runs with every daily DNS check. Imported domains are DNS-checked right away
   and then daily, so domains without DMARC or DKIM show up even before any report arrives.
+- SPF with 8–10 DNS lookups is OK (an informational note only); only more than 10 is an error.
 - Domain table: **SPF** and **DKIM** columns (OK / warning / error / missing; hover for lookups,
   selectors and key length).
 - **Fix:** after an update, browsers could keep the old `app.js` / `app.css` and charts stopped

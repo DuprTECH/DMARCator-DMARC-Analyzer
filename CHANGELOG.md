@@ -3,6 +3,14 @@
 All notable changes to DMARCula. Versions follow [semantic versioning](https://semver.org/).
 The running version is shown in the page footer, by `GET /healthz` and by `python -m app.manage version`.
 
+## 1.1.6 – 2026-10-15
+
+- Optional age-based retention for global Exchange Online / Graph mailboxes: checkbox and retention
+  days, off by default. Permanently deletes up to 500 old, explicitly marked successful report
+  messages per poll from a dedicated processed folder. No quota or 10% free-space guarantee.
+- **Fix:** messages without reports and reports that failed to store now use the configured failed
+  folder, never the successful-report retention path.
+
 ## 1.1.5 – 2026-10-14
 
 - Forensic reports in non-standard formats are recognised: `message/feedback-report` anywhere in the

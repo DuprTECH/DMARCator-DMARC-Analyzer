@@ -49,6 +49,11 @@
     </div>
 
     {% if kind == 'graph' %}
+    <div class="field full">
+      <label class="toggle"><input type="checkbox" name="cleanup_enabled" {% if cfg.get('cleanup_enabled') %}checked{% endif %}> {{ _('Automaticky mazať staré spracované správy') }}</label>
+      <label>{{ _('Retencia správ (dni)') }} <input type="number" name="cleanup_days" min="1" max="3650" value="{{ cfg.get('cleanup_days') or 30 }}"></label>
+      <div class="hint">{{ _('Nevratné mazanie iba označených reportov v samostatnom priečinku spracovaných, podľa dátumu prijatia. Platí pre reporty spracované po zapnutí. Najviac 500 správ za beh. Nezaručuje 10 % voľného miesta; Exchange môže dáta naďalej uchovávať podľa retenčných pravidiel.') }}</div>
+    </div>
     <details class="field full"><summary>{{ _('Pokročilé – certifikát, národné cloudy') }}</summary>
       <div class="form-grid mt">
         <div class="field full"><label>{{ _('Certifikát – privátny kľúč (PEM)') }}</label><textarea name="cert_pem" rows="4" placeholder="{{ _('•••••• (uložené)') if cfg.get('has_cert_pem') else '-----BEGIN PRIVATE KEY-----' }}"></textarea></div>

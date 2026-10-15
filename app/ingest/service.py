@@ -234,7 +234,11 @@ def run_source(source_id: int, limit: int = 500) -> str:
                     with session_scope() as db:
                         add_log(db, name, f"'{subject[:120]}': {_short_error(exc)}", "error")
                 totals["errors"] += 0 if ok else 1
-                mbox.done(mid, ok or bool(res and res.reports))
+                mbox.done(mid, ok and bool(res and res.reports))
+            if isinstance(mbox, GraphMailbox) and mbox.cfg.get("cleanup_enabled"):
+                deleted = mbox.cleanup()
+                with session_scope() as db:
+                    add_log(db, name, f"Retencia: trvalo zmazaných {deleted} spracovaných správ.")
             message = (f"{totals['messages']} správ, {totals['new']} nových reportov, "
                        f"{totals['duplicate']} duplicít, {totals['errors']} chýb")
             if totals["errors"]:

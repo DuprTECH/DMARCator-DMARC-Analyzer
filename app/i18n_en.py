@@ -5,6 +5,13 @@ Keys containing {placeholders} also act as patterns for already rendered Slovak 
 """
 
 EN: dict[str, str] = {
+    "Automaticky mazať staré spracované správy": "Automatically delete old processed messages",
+    "Retencia správ (dni)": "Message retention (days)",
+    "Retencia musí byť celé číslo od 1 do 3650 dní.": "Retention must be a whole number from 1 to 3650 days.",
+    "Čistenie vyžaduje samostatný priečinok spracovaných reportov.": "Cleanup requires a dedicated processed reports folder.",
+    "Automatické čistenie je podporované iba v globálnom Microsoft Graph.": "Automatic cleanup is supported only in global Microsoft Graph.",
+    "Retencia: trvalo zmazaných {count} spracovaných správ.": "Retention: permanently deleted {count} processed messages.",
+    "Nevratné mazanie iba označených reportov v samostatnom priečinku spracovaných, podľa dátumu prijatia. Platí pre reporty spracované po zapnutí. Najviac 500 správ za beh. Nezaručuje 10 % voľného miesta; Exchange môže dáta naďalej uchovávať podľa retenčných pravidiel.": "Irreversible deletion of marked reports only, in a dedicated processed folder, by received date. Applies to reports processed after enabling. At most 500 messages per run. Does not guarantee 10% free space; Exchange retention policies may continue to retain the data.",
     # ------------------------------------------------------------------ navigation / layout
     "Prehľad": "Overview",
     "Domény": "Domains",

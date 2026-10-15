@@ -3,12 +3,16 @@
 import logging
 import time
 from collections.abc import Iterator
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 import httpx
 import msal
 
+from .retention import retention_days
+
 log = logging.getLogger(__name__)
+PROCESSED_PROPERTY = "String {c3737793-56f7-47c0-a20a-7f90a5b05832} Name DMARCulaProcessed"
 
 
 class GraphError(Exception):
@@ -112,11 +116,59 @@ class GraphMailbox:
 
     def done(self, message_id: str, ok: bool):
         target = self.cfg.get("processed_folder") if ok else (self.cfg.get("failed_folder") or None)
+        patch = {}
         if self.cfg.get("mark_read", True):
-            self._req("PATCH", f"/messages/{message_id}", json={"isRead": True})
+            patch["isRead"] = True
+        if ok and retention_days(self.cfg):
+            patch["singleValueExtendedProperties"] = [{"id": PROCESSED_PROPERTY, "value": "true"}]
+        if patch:
+            self._req("PATCH", f"/messages/{message_id}", json=patch)
         if target:
             dest = self.resolve_folder(target, create=True)
             self._req("POST", f"/messages/{message_id}/move", json={"destinationId": dest})
+
+    def cleanup(self) -> int:
+        days = retention_days(self.cfg)
+        if not days:
+            return 0
+        folder = self.resolve_folder(self.cfg["processed_folder"])
+        protected = [self.cfg.get("folder") or "Inbox", "Inbox", "DeletedItems", "SentItems", "JunkEmail", "Archive"]
+        if self.cfg.get("failed_folder"):
+            protected.append(self.cfg["failed_folder"])
+        if folder in {self.resolve_folder(path) for path in protected}:
+            raise GraphError("Čistenie odmietnuté: priečinok spracovaných nie je samostatný.")
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        stamp = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+        params = {
+            "$select": "id,receivedDateTime",
+            "$filter": f"receivedDateTime lt {stamp} and singleValueExtendedProperties/Any("
+                       f"p: p/id eq '{PROCESSED_PROPERTY}' and p/value eq 'true')",
+            "$expand": f"singleValueExtendedProperties($filter=id eq '{PROCESSED_PROPERTY}')",
+            "$orderby": "receivedDateTime asc",
+            "$top": "100",
+        }
+        # Collect before deleting so pagination cannot skip messages as the folder changes.
+        candidates = []
+        url = f"/mailFolders/{folder}/messages"
+        while url and len(candidates) < 500:
+            data = self._req("GET", url, params=params if not url.startswith("http") else None).json()
+            for item in data["value"]:
+                marked = any(p["id"] == PROCESSED_PROPERTY and p["value"] == "true"
+                             for p in item.get("singleValueExtendedProperties", []))
+                received = datetime.fromisoformat(item["receivedDateTime"].replace("Z", "+00:00"))
+                if not marked or received >= cutoff:
+                    raise GraphError("Čistenie odmietnuté: server vrátil správu mimo pravidiel retencie.")
+                candidates.append(item["id"])
+                if len(candidates) == 500:
+                    break
+            url = data.get("@odata.nextLink")
+        deleted = 0
+        for mid in candidates:
+            # Folder-scoped endpoint also protects messages moved out since listing.
+            self._req("POST", f"/mailFolders/{folder}/messages/{mid}/permanentDelete")
+            deleted += 1
+            log.info("Retention permanently deleted processed message %s from %s", mid, self.cfg["processed_folder"])
+        return deleted
 
     def close(self):
         self.http.close()

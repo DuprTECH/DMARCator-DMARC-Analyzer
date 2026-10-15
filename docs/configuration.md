@@ -109,7 +109,24 @@ variables at the `.mmdb` files. Without them, the country map and ASN columns st
 | Move processed to | ✔ | ✔ | Created if missing. Empty means messages aren't moved. |
 | Move failed to | ✔ | ✔ | Messages without a valid report. |
 | Only unread / mark as read | ✔ | ✔ | With "only unread" off, the whole folder is processed. Duplicates are skipped. |
+| Automatically delete old processed messages / retention days | ✔ | – | Off by default; 30 days suggested, allowed range 1–3650 days. Global Microsoft Graph only. Requires a dedicated processed folder separate from input and failed folders. |
 | Authority host, Graph endpoint | ✔ | – | National clouds (GCC High, 21Vianet). |
 
 At most 500 messages are processed per mailbox per run. A backlog is worked off over
 consecutive runs.
+
+### Optional mailbox message retention
+
+Enabling retention authorizes irreversible `permanentDelete` calls for up to 500 old messages
+after each successful polling pass. Age is measured from the message's **received date**, not its
+processing date; an old backlog report can therefore be deleted immediately after successful import.
+Only messages explicitly marked by DMARCula as successfully processed **while retention is enabled**
+are eligible, and only within the configured processed folder (not its subfolders).
+Existing unmarked mail, failed reports and ordinary notifications are not deleted. A report must
+have been recognized and all its reports saved or identified as duplicates before it is marked.
+
+This is age-based retention, **not quota monitoring**: it cannot guarantee 10% free space.
+Exchange may retain permanently deleted messages in Recoverable Items under its retention/hold
+policies. Stored database reports are unaffected. Verify backups and organizational retention
+requirements before enabling. Errors are recorded in the source log and abort that polling run;
+already completed deletions cannot be rolled back. Each deletion is recorded in the server log.

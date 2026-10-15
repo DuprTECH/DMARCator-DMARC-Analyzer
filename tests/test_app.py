@@ -75,3 +75,40 @@ def test_full_flow():
         assert r.status_code == 303
         edit = client.get("/admin/sources/1").text
         assert "s3cr3t" not in edit and "uložené" in edit
+
+
+def test_mailbox_retention_form():
+    from sqlalchemy import select
+
+    from app.db import session_scope
+    from app.models import MailSource
+    from app.security import decrypt_json
+
+    with TestClient(app) as client:
+        login(client)
+        page = client.get("/admin/sources/new?kind=graph")
+        assert 'name="cleanup_enabled"' in page.text
+        data = {
+            "csrf_token": csrf(page.text), "kind": "graph", "name": "retention-form",
+            "tenant_id": "t", "client_id": "c", "mailbox": "retention@example.sk",
+            "folder": "Inbox", "processed_folder": "Inbox/processed", "failed_folder": "Inbox/error",
+            "cleanup_enabled": "on", "cleanup_days": "30",
+        }
+        assert client.post("/admin/sources/save", data=data, follow_redirects=False).status_code == 303
+        with session_scope() as db:
+            src = db.scalar(select(MailSource).where(MailSource.name == "retention-form"))
+            sid = src.id
+            cfg = decrypt_json(src.config_encrypted)
+            assert cfg["cleanup_enabled"] is True and cfg["cleanup_days"] == 30
+        edit = client.get(f"/admin/sources/{sid}")
+        assert 'name="cleanup_enabled" checked' in edit.text
+        data["id"] = str(sid)
+        for invalid in ({"cleanup_days": "0"}, {"processed_folder": "Inbox/error"}):
+            client.post("/admin/sources/save", data={**data, **invalid})
+            with session_scope() as db:
+                assert decrypt_json(db.get(MailSource, sid).config_encrypted) == cfg
+        del data["cleanup_enabled"]
+        client.post("/admin/sources/save", data=data)
+        with session_scope() as db:
+            assert decrypt_json(db.get(MailSource, sid).config_encrypted)["cleanup_enabled"] is False
+        assert 'name="cleanup_enabled"' not in client.get("/admin/sources/new?kind=imap").text

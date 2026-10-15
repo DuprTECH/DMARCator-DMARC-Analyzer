@@ -43,7 +43,7 @@ SECRET_FIELDS = ("client_secret", "password", "cert_pem")
 BOOL_FIELDS = ("only_unread", "mark_read", "tls_verify")
 FIELDS = {
     "graph": ("tenant_id", "client_id", "client_secret", "cert_pem", "cert_thumbprint", "mailbox", "folder",
-              "processed_folder", "failed_folder", "authority_host", "graph_endpoint"),
+              "processed_folder", "failed_folder", "authority_host", "graph_endpoint", "cleanup_days"),
     "imap": ("host", "port", "security", "auth", "username", "password", "tenant_id", "client_id", "client_secret",
              "folder", "processed_folder", "failed_folder"),
 }
@@ -95,6 +95,15 @@ async def source_save(request: Request, db: Session = Depends(get_db)):
         cfg[k] = v if (v or k not in SECRET_FIELDS) else old.get(k, "")
     for k in BOOL_FIELDS:
         cfg[k] = form.get(k) == "on"
+    cfg["cleanup_enabled"] = kind == "graph" and form.get("cleanup_enabled") == "on"
+    if cfg["cleanup_enabled"]:
+        from ..ingest.retention import retention_days
+
+        try:
+            cfg["cleanup_days"] = retention_days(cfg)
+        except ValueError as exc:
+            flash(request, str(exc), "error")
+            return RedirectResponse(f"/admin/sources/{sid}" if sid else f"/admin/sources/new?kind={kind}", 303)
     required = ("tenant_id", "client_id", "mailbox") if kind == "graph" else ("host", "username")
     missing = [k for k in required if not cfg.get(k)]
     if missing:

@@ -179,3 +179,63 @@ def test_values_are_fitted_to_columns():
         assert stats["new"] == 1 and not stats["errors"]
         rep = db.scalar(select(AggregateReport).where(AggregateReport.report_id == "long-1"))
         assert max(len(r.header_from) for r in rep.records) <= 255
+
+
+def test_invalid_messages_and_failed_reports_use_failed_folder(monkeypatch):
+    init_db()
+
+    class FakeMailbox:
+        done_calls = []
+
+        def fetch(self, limit):
+            yield "empty", "notification", _wrap("notification", [("text", "Hello")])
+            yield "bad", "report", _wrap("report", [("application/xml", _report("routing-failure").decode())])
+
+        def done(self, mid, ok):
+            self.done_calls.append((mid, ok))
+
+        def close(self):
+            pass
+
+    def fail_store(*args):
+        raise OperationalError("INSERT", {}, Exception("storage failed"))
+
+    monkeypatch.setattr(service, "store", fail_store)
+    monkeypatch.setattr(service, "open_mailbox", lambda src: FakeMailbox())
+    with session_scope() as db:
+        src = MailSource(name="routing-test", kind="graph", config_encrypted="x")
+        db.add(src)
+        db.flush()
+        sid = src.id
+    assert "1 chýb" in service.run_source(sid)
+    assert FakeMailbox.done_calls == [("empty", False), ("bad", False)]
+
+
+def test_cleanup_runs_without_new_messages_and_logs_failure(monkeypatch):
+    from app.ingest.graph import GraphError, GraphMailbox
+
+    init_db()
+    box = GraphMailbox.__new__(GraphMailbox)
+    box.cfg = {"cleanup_enabled": True}
+    box.fetch = lambda limit: iter(())
+    box.close = lambda: None
+    box.cleanup = lambda: 7
+    monkeypatch.setattr(service, "open_mailbox", lambda src: box)
+    with session_scope() as db:
+        src = MailSource(name="cleanup-test", kind="graph", config_encrypted="x")
+        db.add(src)
+        db.flush()
+        sid = src.id
+    service.run_source(sid)
+    with session_scope() as db:
+        assert db.get(MailSource, sid).last_status == "ok"
+        assert any("7 spracovaných" in message for message in db.scalars(
+            select(IngestLog.message).where(IngestLog.source == "cleanup-test")))
+
+    def fail_cleanup():
+        raise GraphError("cleanup permission denied")
+
+    box.cleanup = fail_cleanup
+    assert "cleanup permission denied" in service.run_source(sid)
+    with session_scope() as db:
+        assert db.get(MailSource, sid).last_status == "error"

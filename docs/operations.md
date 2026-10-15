@@ -24,6 +24,7 @@ You **don't need cron to fetch reports**. The application has a built-in schedul
 | Fetch reports from all enabled mailboxes | every 15 minutes | `POLL_INTERVAL_MINUTES` |
 | DNS check of new domains | right after their first report | – |
 | DNS re-check of all domains (8 in parallel) | every 24 hours | `DNS_REFRESH_HOURS` |
+| E-mail alerts: serious changes, monthly summary | every hour / 1st of the month | *Administration → E-mail alerts* |
 | Restart after a crash | immediately | systemd `Restart=always` |
 | Let's Encrypt renewal | twice a day (only renews when due) | `certbot.timer` (installed with certbot) |
 
@@ -51,6 +52,8 @@ sudo -u dmarcator .venv/bin/python -m app.manage <command>
 | `status [--max-age MIN]` | prints mailbox status and the newest stored report | **1** if a mailbox failed or hasn't run for MIN minutes (default 60) |
 | `set-password USERNAME` | sets a local account's password (prompts, or reads `DMARCATOR_PASSWORD`) and re-activates it | 2 on error |
 | `create-admin USERNAME` | creates a new local admin account | 2 if it exists |
+| `alerts` | detects serious changes now and e-mails the pending alerts (normally hourly) | 0 |
+| `monthly-report [--month YYYY-MM]` | e-mails the monthly summary now (default: previous month) | error if sending fails |
 | `geoip-refresh` | looks up country / ASN of every known source IP in the GeoLite2 databases and writes them into stored reports | 2 without a readable database |
 
 Examples:
@@ -108,6 +111,8 @@ Notes:
 ```cron
 */15 * * * * dmarcator  cd /opt/dmarcator && flock -n /tmp/dmarcator-poll.lock .venv/bin/python -m app.manage poll > /dev/null
 40 4 * * *   dmarcator  cd /opt/dmarcator && flock -n /tmp/dmarcator-dns.lock  .venv/bin/python -m app.manage dns  > /dev/null
+5 * * * *    dmarcator  cd /opt/dmarcator && flock -n /tmp/dmarcator-alerts.lock .venv/bin/python -m app.manage alerts > /dev/null
+10 7 1 * *   dmarcator  cd /opt/dmarcator && .venv/bin/python -m app.manage monthly-report > /dev/null
 ```
 
 `flock -n` skips a run if the previous one is still going.
@@ -196,6 +201,7 @@ sudo mariadb -e "OPTIMIZE TABLE dmarcator.aggregate_records, dmarcator.aggregate
 | Reports still arriving | the `status` output shows the newest stored report; in the UI see *Administrácia → Poštové schránky → Log* |
 | Disk space | `df -h /var/lib/mysql /home` |
 | Certificate expiry | `sudo certbot certificates` |
+| Unusual DMARC failures, removed DNS records, failing mailbox | e-mail alerts – *Administration → E-mail alerts* ([configuration](configuration.md#e-mail-alerts-in-the-ui)) |
 
 Uptime Kuma / Zabbix HTTP check: URL `https://dmarc.example.com/healthz`, expected keyword `ok`.
 

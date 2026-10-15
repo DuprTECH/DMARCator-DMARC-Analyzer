@@ -216,6 +216,22 @@ class IpInfo(Base):
     checked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class Alert(Base):
+    """A detected event (traffic anomaly, removed DNS record, failing mailbox, monthly report).
+    The unique key makes every event count once; sent_at is set when the e-mail went out."""
+
+    __tablename__ = "alerts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(String(255), unique=True)
+    kind: Mapped[str] = mapped_column(String(32), index=True)  # fail_spike | compliance_drop | dns_removed | mailbox | monthly
+    domain: Mapped[str | None] = mapped_column(String(255))
+    message: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime)
+    error: Mapped[str | None] = mapped_column(Text)
+
+
 class AppSetting(Base):
     """Settings changed in the web UI (stored encrypted, override values from .env)."""
 

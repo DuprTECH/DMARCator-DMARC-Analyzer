@@ -109,6 +109,18 @@ client ID and secret.
 Exchange Online doesn't allow IMAP with a password (basic auth). Password login is meant for
 other mail servers (Gmail with an app password, Dovecot, Zimbra, …).
 
+### Sending e-mail alerts
+
+To send *E-mail alerts* through Microsoft 365, the mailbox app needs **Mail.Send**. With RBAC for
+Applications grant it only for the report mailbox:
+
+```powershell
+New-ManagementRoleAssignment -App <ClientId> -Role "Application Mail.Send" -CustomResourceScope "DMARCator-scope"
+```
+
+(or the Graph application permission `Mail.Send` with admin consent, which covers every mailbox).
+Then choose the mailbox as the sender in *Administration → E-mail alerts*.
+
 ### Importing tenant domains
 
 *Domains → Add domains manually → Import domains from Microsoft 365* reads every verified domain of

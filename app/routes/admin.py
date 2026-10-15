@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from .. import settings_store
+from .. import alerts, settings_store
 from ..analysis.cache import invalidate
 from ..auth import ldap_auth, oidc
 from ..config import get_settings
@@ -23,6 +23,7 @@ from ..ingest.service import (
 )
 from ..models import (
     AggregateReport,
+    Alert,
     Domain,
     ForensicReport,
     IngestLog,
@@ -70,6 +71,46 @@ async def display_settings_save(request: Request, me: User = Depends(admin_requi
         return RedirectResponse("/admin/display", 303)
     flash(request, "Nastavenia zobrazenia uložené.")
     return RedirectResponse("/admin/display", 303)
+
+
+@router.get("/alerts")
+def alerts_page(request: Request, db: Session = Depends(get_db)):
+    return render(request, "admin/alerts.html", {
+        "cfg": alerts.load(),
+        "graph_sources": db.scalars(select(MailSource).where(MailSource.kind == "graph")).all(),
+        "events": db.scalars(select(Alert).order_by(Alert.created_at.desc()).limit(50)).all(),
+    })
+
+
+@router.post("/alerts", dependencies=[Depends(verify_csrf)])
+async def alerts_save(request: Request, me: User = Depends(admin_required)):
+    try:
+        alerts.save(dict(await request.form()), me.username)
+        flash(request, "Nastavenia upozornení uložené.")
+    except ValueError as exc:
+        flash(request, str(exc), "error")
+    return RedirectResponse("/admin/alerts", 303)
+
+
+@router.post("/alerts/test", dependencies=[Depends(verify_csrf)])
+def alerts_test(request: Request):
+    cfg = alerts.load()
+    try:
+        alerts.send(cfg, "[DMARCator] Test", "<p>DMARCator – test e-mail / testovací e-mail.</p>")
+        flash(request, "Testovací e-mail odoslaný: {to}".format(to=", ".join(alerts.recipients(cfg))))
+    except Exception as exc:  # noqa: BLE001 – show the reason to the administrator
+        flash(request, f"Odoslanie zlyhalo: {exc}", "error")
+    return RedirectResponse("/admin/alerts", 303)
+
+
+@router.post("/alerts/monthly", dependencies=[Depends(verify_csrf)])
+def alerts_monthly(request: Request):
+    try:
+        alerts.send_monthly(force=True)
+        flash(request, "Mesačný report odoslaný.")
+    except Exception as exc:  # noqa: BLE001
+        flash(request, f"Odoslanie zlyhalo: {exc}", "error")
+    return RedirectResponse("/admin/alerts", 303)
 
 
 @router.get("/sources")

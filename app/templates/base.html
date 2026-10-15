@@ -35,6 +35,7 @@
       <a href="/admin/users" class="{% if path.startswith('/admin/users') %}active{% endif %}">{{ icon('users') }}{{ _('Používatelia') }}</a>
       <a href="/admin/auth" class="{% if path.startswith('/admin/auth') %}active{% endif %}">{{ icon('lock') }}{{ _('Prihlásenie (LDAP / SSO)') }}</a>
       <a href="/admin/display" class="{% if path.startswith('/admin/display') %}active{% endif %}">{{ icon('globe') }}{{ _('Čas a jazyk') }}</a>
+      <a href="/admin/alerts" class="{% if path.startswith('/admin/alerts') %}active{% endif %}">{{ icon('mail') }}{{ _('Upozornenia e-mailom') }}</a>
       {% endif %}
     </nav>
     <div class="spacer"></div>

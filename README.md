@@ -40,6 +40,7 @@ stay on your own server. No subscription, no per-domain or per-message pricing.
 | **Reliable processing** | Scheduled polling, per-report database transactions, duplicate detection, per-message error isolation and source status/logs. Reports without a date range have a fallback period; common non-standard forensic formats are supported. |
 | **Mailbox retention** | Opt-in checkbox and retention days for global Microsoft Graph. Permanently deletes old, explicitly marked successful reports from a dedicated processed folder, at most 500 per run. Disabled by default; not quota monitoring and **does not guarantee 10% free space**. |
 | **Time and language** | Web-admin settings for a shared IANA time zone (including automatic daylight-saving changes) and default language. Personal SK/EN overrides and AUTO reset. Stored timestamps remain UTC. |
+| **E-mail alerts** | Immediate notice when DMARC failures or compliance of a domain go far outside its own usual level (28-day median), when a DMARC / SPF / DKIM record disappears or a mailbox fails, plus a **monthly summary**. Sent via **Microsoft 365 (Graph)** or **SMTP**. |
 | **Operations** | Built-in polling and DNS scheduler, health/version endpoint, CLI mailbox status, manual polling/DNS refresh, database report/log pruning, password/admin recovery, and documented backup/cron workflows. |
 
 ### What the portal helps you do

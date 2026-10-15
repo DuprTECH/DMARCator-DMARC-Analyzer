@@ -8,6 +8,7 @@ from datetime import timedelta
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from ..alerts import dns_regressions
 from ..analysis import dns_checks
 from ..analysis.cache import invalidate
 from ..analysis.enrich import enrich_ips
@@ -319,6 +320,7 @@ def report_evidence(db: Session, domain: str, result: dict) -> dict:
 
 def check_and_save(db: Session, dom: Domain) -> dict:
     result = report_evidence(db, dom.name, dns_checks.check_domain(dom.name, selectors_for(db, dom.name)))
+    dns_regressions(db, dom.name, dom.dns, result)
     dom.dns, dom.dns_score, dom.dns_checked_at = result, result["score"], utcnow()
     return result
 
@@ -392,6 +394,7 @@ def refresh_dns(only_missing: bool = False):
                         dom = db.get(Domain, did)
                         if dom:
                             result = report_evidence(db, dom.name, result)
+                            dns_regressions(db, dom.name, dom.dns, result)
                             dom.dns, dom.dns_score, dom.dns_checked_at = result, result["score"], utcnow()
         invalidate()
         log.info("DNS check finished for %d domains", len(todo))

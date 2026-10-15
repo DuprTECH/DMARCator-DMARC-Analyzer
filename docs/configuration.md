@@ -147,6 +147,39 @@ variables at the `.mmdb` files. Without them, the country map and ASN columns st
 | `GeoIP DB … unavailable: No such file or directory` | The download hasn't succeeded yet – run `geoipupdate -v`. |
 | Map stays empty although countries are listed | The browser loads the world map from `cdn.jsdelivr.net`; allow it. |
 
+## E-mail alerts (in the UI)
+
+*Administration → E-mail alerts* sends two kinds of e-mail to the listed recipients:
+
+- **Immediately on a serious change** (checked every hour):
+  - **DMARC failures far above the usual level of a domain** – the failures of a day that aren't
+    explained by forwarding are compared with the median and spread of the same domain over the
+    previous 28 days (alert when above 3× the median and 6 robust deviations, and at least
+    *Minimum failures per day*, default 50),
+  - **DMARC compliance of a day far below the usual level** (more than 20 points under the median of
+    days with at least 20 messages, for days with at least 100 messages),
+  - **a published DMARC / SPF record or all DKIM keys disappeared** (found by the daily DNS check;
+    an unanswered DNS query is never reported as a removal),
+  - **a report mailbox is failing**.
+- **Monthly summary** on the 1st from 07:00 (or the next hour the server runs, up to the 7th):
+  messages, compliance and threats per domain, domains with missing or broken DMARC / SPF / DKIM,
+  and the alerts of the month.
+
+Domains set to *not monitored* raise no alerts. Every event is stored once (see *Recent events* on
+the page), so it is never e-mailed twice; a failed send is retried the next hour.
+
+| Field | Description |
+|---|---|
+| Send alerts / Immediately / Monthly summary | switches; nothing is sent until *Send alerts* is on |
+| Recipients | comma-separated addresses |
+| Minimum failures per day | smaller jumps are ignored even when large relative to the usual level |
+| Send via **Microsoft 365 (Graph)** | the e-mail leaves from one of the Exchange Online report mailboxes by its app. Grant the app **Mail.Send** – ideally with RBAC for Applications only for that mailbox: `New-ManagementRoleAssignment -App <ClientId> -Role "Application Mail.Send" -CustomResourceScope "DMARCator-scope"` |
+| Send via **SMTP** | server, port, STARTTLS (587) / SSL (465) / none (25, internal relay), From address, user and password (stored encrypted) |
+
+*Send a test e-mail* and *Send last month's report* check the configuration right away. Without the
+built-in scheduler (`SCHEDULER_ENABLED=false`) run `python -m app.manage alerts` hourly from cron
+(see [Operations](operations.md)).
+
 ## Mailbox settings (in the UI)
 
 | Field | Graph | IMAP | Description |

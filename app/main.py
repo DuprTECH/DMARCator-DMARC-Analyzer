@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import __version__
+from . import __version__, alerts
 from .config import get_settings
 from .db import init_db, session_scope
 from .i18n import LANGUAGES, browser_language, set_language
@@ -55,6 +55,7 @@ async def lifespan(_: FastAPI):
                           max_instances=1, coalesce=True)
         scheduler.add_job(refresh_dns, "interval", hours=settings.dns_refresh_hours, id="dns",
                           max_instances=1, coalesce=True)
+        scheduler.add_job(alerts.hourly, "interval", minutes=60, id="alerts", max_instances=1, coalesce=True)
         scheduler.start()
     else:
         log.info("Built-in scheduler disabled – run 'python -m app.manage poll' from cron")

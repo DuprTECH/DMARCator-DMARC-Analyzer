@@ -156,6 +156,9 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("create-admin", help="create a local admin account")
     p.add_argument("username")
     sub.add_parser("auth-reset", help="drop sign-in settings saved in the web UI (back to .env)")
+    sub.add_parser("alerts", help="detect serious changes now and e-mail them (normally hourly)")
+    p = sub.add_parser("monthly-report", help="e-mail the monthly summary now")
+    p.add_argument("--month", help="YYYY-MM (default: previous month)")
     sub.add_parser("geoip-refresh", help="write country / ASN from the GeoLite2 databases into stored reports")
     sub.add_parser("version", help="print the version")
     args = ap.parse_args(argv)
@@ -187,6 +190,20 @@ def main(argv: list[str] | None = None) -> int:
         return status(args.max_age)
     if args.cmd == "geoip-refresh":
         return geoip_refresh()
+    if args.cmd == "alerts":
+        from .alerts import check_and_notify
+
+        print(f"Alerts e-mailed: {check_and_notify()}")
+        return 0
+    if args.cmd == "monthly-report":
+        from datetime import date
+
+        from .alerts import send_monthly
+
+        month = date.fromisoformat(args.month + "-01") if args.month else None
+        send_monthly(month, force=True)
+        print("Monthly report sent.")
+        return 0
     if args.cmd == "set-password":
         return set_password(args.username)
     if args.cmd == "create-admin":

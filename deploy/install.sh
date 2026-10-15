@@ -124,9 +124,11 @@ migrate_from_dmarcula() {
     [[ -f $old_unit && ! -f /etc/systemd/system/dmarcator.service ]] || return 0
     old_dir="$(sed -n 's/^WorkingDirectory=//p' "$old_unit" | head -1)"
     if [[ ! -d "$old_dir/.git" || ! -f "$old_dir/.env" ]]; then
-        warn "dmarcula.service found, but '$old_dir' is not an installation – not renamed."
-        return 0
+        die "dmarcula.service points to '$old_dir', which is not an installation (moved by hand?). Restore that path, or remove dmarcula.service, then run the installer again."
     fi
+    # nothing is changed unless the new code can be fetched
+    git ls-remote --exit-code "$REPO_URL" "$BRANCH" >/dev/null 2>&1 \
+        || die "Cannot reach $REPO_URL – nothing was changed. Check network access to GitHub and try again."
     step "Renaming the DMARCula installation in $old_dir to DMARCator"
     APP_PORT="$(sed -n 's/.*--port \([0-9]*\).*/\1/p' "$old_unit" | head -1)"
     APP_PORT="${APP_PORT:-8000}"

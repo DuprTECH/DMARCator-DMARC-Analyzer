@@ -111,6 +111,6 @@ def parse_form(form, current: Settings) -> dict:
     for name in SECRET_FIELDS:
         value = str(form.get(name) or "")
         out[name] = value if value else getattr(current, name)
-    if out["default_role"] not in ("admin", "viewer"):
-        out["default_role"] = "viewer"
+    if out["default_role"] not in ("admin", "viewer", "none"):
+        out["default_role"] = "none"
     return out

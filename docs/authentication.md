@@ -8,6 +8,14 @@ Three login methods are available, and they can be enabled at the same time:
 | **LDAP / AD** | automatically at first login | from `LDAP_ADMIN_GROUP`, otherwise `DEFAULT_ROLE` |
 | **SSO (OIDC)** | automatically at first login | from `OIDC_ADMIN_GROUPS`, otherwise `DEFAULT_ROLE` |
 
+Roles: **admin** (everything incl. administration), **viewer** (read-only), **none** (no access).
+`DEFAULT_ROLE` is `none` by default: a new LDAP / SSO user is created at the first sign-in, sees
+*Your account is waiting for approval* and appears in *Users* with a *waiting for approval* badge,
+where an administrator grants `viewer` or `admin`. Set *Role of new LDAP / SSO users* to `viewer`
+to let everybody from the allowed groups in right away. With an admin group configured, membership
+decides only about the **admin** role at every sign-in (leaving the group takes admin away); `viewer`
+and `none` stay as an administrator set them.
+
 ## Where to configure
 
 Open **Administrácia → Prihlásenie (LDAP / SSO)** in the web UI (admins only). It configures local

@@ -41,7 +41,7 @@ Notes:
 | `ADMIN_USERNAME` | `admin` | Username of the first administrator. |
 | `ADMIN_PASSWORD` | – | Password of the first administrator. Used only when the user table is empty. |
 | `LOCAL_LOGIN_ENABLED` | `true` | `false` disables password login for local accounts (e.g. SSO only). This also disables the bootstrap admin. |
-| `DEFAULT_ROLE` | `viewer` | Role of new LDAP/SSO users who are not in an admin group. |
+| `DEFAULT_ROLE` | `none` | Role of new LDAP/SSO users who are not in an admin group: `none` (no access until an administrator grants a role), `viewer` or `admin`. Overridden by the setting in the web UI. |
 
 ## LDAP / Active Directory
 

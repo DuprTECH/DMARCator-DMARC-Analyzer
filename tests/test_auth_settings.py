@@ -63,3 +63,35 @@ def test_sign_in_settings_in_web_ui():
         assert not settings_store.effective_settings().ldap_enabled
     finally:
         settings_store.clear_auth()
+
+
+def test_new_external_users_wait_for_approval():
+    from fastapi.testclient import TestClient
+    from sqlalchemy import select
+
+    from app.db import init_db, session_scope
+    from app.main import app
+    from app.models import User
+    from app.routes.auth import upsert_external
+    from app.security import hash_password
+    from tests.test_app import csrf
+
+    init_db()
+    with session_scope() as db:
+        u = upsert_external(db, "oidc", "new.user@example.com", "New User", None, None)
+        assert u.role == "none"  # DEFAULT_ROLE=none
+        u.role = "viewer"  # granted by an administrator
+        db.commit()
+        assert upsert_external(db, "oidc", "new.user@example.com", None, None, False).role == "viewer"  # kept
+        assert upsert_external(db, "oidc", "new.user@example.com", None, None, True).role == "admin"
+        assert upsert_external(db, "oidc", "new.user@example.com", None, None, False).role == "none"  # left the group
+        db.add(User(username="pending.local", auth_source="local", role="none", password_hash=hash_password("Pending-pass-1")))
+
+    with TestClient(app) as client:
+        page = client.get("/login")
+        r = client.post("/login", data={"username": "pending.local", "password": "Pending-pass-1", "csrf_token": csrf(page.text)},
+                        follow_redirects=False)
+        assert r.status_code == 403 and "čaká na schválenie" in r.text
+        assert client.get("/", follow_redirects=False).headers["location"] == "/login"
+    with session_scope() as db:
+        assert db.scalar(select(User.role).where(User.username == "pending.local")) == "none"

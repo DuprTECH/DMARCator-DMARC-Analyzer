@@ -26,6 +26,7 @@ from ..models import (
     Domain,
     ForensicReport,
     IngestLog,
+    ROLES,
     MailSource,
     TlsReport,
     User,
@@ -219,7 +220,7 @@ def user_create(request: Request, username: str = Form(...), password: str = For
     elif len(password) < 10:
         flash(request, "Heslo musí mať aspoň 10 znakov.", "error")
     else:
-        db.add(User(username=username, password_hash=hash_password(password), role=role if role in ("admin", "viewer") else "viewer",
+        db.add(User(username=username, password_hash=hash_password(password), role=role if role in ROLES else "viewer",
                     display_name=display_name or None, email=email or None, auth_source="local"))
         db.commit()
         flash(request, f"Používateľ {username} vytvorený.")
@@ -235,7 +236,7 @@ def user_update(uid: int, request: Request, role: str = Form(...), is_active: st
     if u.id == me.id and (role != "admin" or is_active != "on"):
         flash(request, "Nemôžete si odobrať admin práva ani deaktivovať vlastný účet.", "error")
         return RedirectResponse("/admin/users", 303)
-    u.role = role if role in ("admin", "viewer") else "viewer"
+    u.role = role if role in ROLES else "viewer"
     u.is_active = is_active == "on"
     if password:
         if u.auth_source != "local" or len(password) < 10:

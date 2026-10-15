@@ -25,6 +25,11 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+# "none" = signed in once via LDAP / SSO, waiting for an administrator to grant access
+ROLES = ("admin", "viewer", "none")
+ACCESS_ROLES = ("admin", "viewer")
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -34,7 +39,7 @@ class User(Base):
     email: Mapped[str | None] = mapped_column(String(255))
     auth_source: Mapped[str] = mapped_column(String(16), default="local")  # local | ldap | oidc
     password_hash: Mapped[str | None] = mapped_column(String(255))
-    role: Mapped[str] = mapped_column(String(16), default="viewer")  # admin | viewer
+    role: Mapped[str] = mapped_column(String(16), default="viewer")  # admin | viewer | none
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     last_login: Mapped[datetime | None] = mapped_column(DateTime)

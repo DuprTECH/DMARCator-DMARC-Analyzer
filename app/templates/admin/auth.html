@@ -33,7 +33,7 @@
         <div class="hint">{{ _('Vypnúť sa dá až po prihlásení cez LDAP alebo SSO. Núdzový návrat: python -m app.manage auth-reset') }}</div></div>
       <div class="field"><label for="f-default_role">{{ _('Rola nových LDAP / SSO používateľov') }}</label>
         <select id="f-default_role" name="default_role">
-          {% for r in ['viewer', 'admin'] %}<option value="{{ r }}" {% if cfg.default_role == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+          {% for r, label in [('none', _('bez prístupu (schváli administrátor)')), ('viewer', 'viewer'), ('admin', 'admin')] %}<option value="{{ r }}" {% if cfg.default_role == r %}selected{% endif %}>{{ label }}</option>{% endfor %}
         </select>
         <div class="hint">{{ _('Platí, ak používateľ nie je v skupine administrátorov.') }}</div></div>
     </div>

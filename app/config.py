@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     oidc_allowed_groups: str = ""  # comma separated; empty = everyone in the tenant
     oidc_admin_groups: str = ""  # comma separated
 
-    default_role: str = "viewer"
+    default_role: str = "none"  # admin | viewer | none (no access until an admin grants a role)
 
     # Ingestion
     scheduler_enabled: bool = True  # false = poll from cron via "python -m app.manage poll"

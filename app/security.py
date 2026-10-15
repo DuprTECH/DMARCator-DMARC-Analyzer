@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from .config import get_settings
 from .db import get_db
-from .models import User
+from .models import ACCESS_ROLES, User
 
 settings = get_settings()
 
@@ -105,7 +105,7 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
         request.session.clear()
         raise LoginRequired()
     user = db.get(User, uid)
-    if not user or not user.is_active:
+    if not user or not user.is_active or user.role not in ACCESS_ROLES:
         request.session.clear()
         raise LoginRequired()
     request.state.user = user

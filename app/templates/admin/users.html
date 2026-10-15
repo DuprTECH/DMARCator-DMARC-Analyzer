@@ -9,13 +9,13 @@
     <tbody>
     {% for u in items %}
       <tr>
-        <td><strong>{{ u.username }}</strong><div class="sub">{{ u.display_name or '' }} {{ u.email or '' }}</div></td>
+        <td><strong>{{ u.username }}</strong>{% if u.role == 'none' %} <span class="badge warn">{{ _('čaká na schválenie') }}</span>{% endif %}<div class="sub">{{ u.display_name or '' }} {{ u.email or '' }}</div></td>
         <td><span class="badge info plain">{{ u.auth_source|upper }}</span></td>
         <td class="sub">{{ u.last_login|dt }}</td>
         <td>
           <form class="actions" method="post" action="/admin/users/{{ u.id }}/update">
             <input type="hidden" name="csrf_token" value="{{ csrf }}">
-            <select name="role"><option value="viewer" {% if u.role == 'viewer' %}selected{% endif %}>viewer</option><option value="admin" {% if u.role == 'admin' %}selected{% endif %}>admin</option></select>
+            <select name="role">{% for r, label in [('viewer', 'viewer'), ('admin', 'admin'), ('none', _('bez prístupu'))] %}<option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
             <label class="toggle"><input type="checkbox" name="is_active" {% if u.is_active %}checked{% endif %}> {{ _('aktívny') }}</label>
             {% if u.auth_source == 'local' %}<input type="password" name="password" placeholder="{{ _('nové heslo') }}" autocomplete="new-password" style="width:140px">{% endif %}
             <button class="btn sm" type="submit">{{ _('Uložiť') }}</button>
@@ -27,7 +27,7 @@
     </tbody>
   </table></div>
 </div>
-<p class="hint">{{ _('Ak je nastavená skupina správcov (LDAP_ADMIN_GROUP / OIDC_ADMIN_GROUPS), rola externých účtov sa pri každom prihlásení prepočíta podľa skupín.') }}</p>
+<p class="hint">{{ _('Nový LDAP / SSO používateľ dostane rolu z nastavenia prihlásenia (predvolene bez prístupu) a objaví sa tu – pridelte mu rolu viewer alebo admin. Ak je nastavená skupina správcov (LDAP_ADMIN_GROUP / OIDC_ADMIN_GROUPS), rolu admin určuje členstvo v nej pri každom prihlásení.') }}</p>
 
 <form class="card mt" method="post" action="/admin/users/create" style="max-width:720px">
   <input type="hidden" name="csrf_token" value="{{ csrf }}">

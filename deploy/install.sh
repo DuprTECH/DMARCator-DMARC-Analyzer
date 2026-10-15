@@ -137,11 +137,64 @@ render_cron() {
     chmod 644 /etc/cron.d/dmarcator
 }
 
+# legacy_db_url – prints DATABASE_URL when it is a MariaDB database still named "dmarcula"
+legacy_db_url() {
+    local url
+    url="$(env_get DATABASE_URL)"
+    [[ "$url" =~ ^mysql[^:]*://[^/]*/dmarcula([?].*)?$ ]] && printf '%s' "$url"
+}
+
+# rename_legacy_db – MariaDB database "dmarcula" → "dmarcator" (and the account, if it is called
+# "dmarcula"). The service must be stopped. All tables move in one atomic RENAME TABLE; on any
+# problem the old database is kept and the application keeps working with it. Needs root access to
+# MariaDB over the socket, or the root password in MYSQL_PWD. Returns 0 only after a rename.
+rename_legacy_db() {
+    local url sql db_user t h renames=""
+    url="$(legacy_db_url)" || return 1
+    sql="$(command -v mariadb || command -v mysql || true)"
+    if [[ -z "$sql" ]] || ! "$sql" -u root -e 'SELECT 1' >/dev/null 2>&1; then
+        warn "No MariaDB root access – the database stays 'dmarcula' (the application works with it)."
+        warn "To rename it later: read -rs MYSQL_PWD && export MYSQL_PWD && bash install.sh; unset MYSQL_PWD"
+        return 1
+    fi
+    if [[ -n "$("$sql" -u root -N -e "SHOW DATABASES LIKE 'dmarcator'")" ]]; then
+        warn "A database 'dmarcator' already exists – the database stays 'dmarcula'."
+        return 1
+    fi
+    db_user="${url#*://}"; db_user="${db_user%%[:@]*}"
+    for t in $("$sql" -u root -N -e "SELECT table_name FROM information_schema.tables WHERE table_schema='dmarcula'"); do
+        renames+="${renames:+, }\`dmarcula\`.\`$t\` TO \`dmarcator\`.\`$t\`"
+    done
+    "$sql" -u root -e "CREATE DATABASE \`dmarcator\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+    if [[ -n "$renames" ]] && ! "$sql" -u root -e "SET FOREIGN_KEY_CHECKS=0; RENAME TABLE $renames"; then
+        "$sql" -u root -e "DROP DATABASE \`dmarcator\`"
+        warn "Database tables could not be moved – the database stays 'dmarcula' (the application works with it)."
+        return 1
+    fi
+    for h in localhost 127.0.0.1 %; do
+        [[ -n "$("$sql" -u root -N -e "SELECT 1 FROM mysql.user WHERE user='$db_user' AND host='$h'")" ]] || continue
+        if [[ "$db_user" == dmarcula && -z "$("$sql" -u root -N -e "SELECT 1 FROM mysql.user WHERE user='dmarcator' AND host='$h'")" ]]; then
+            "$sql" -u root -e "RENAME USER 'dmarcula'@'$h' TO 'dmarcator'@'$h'"
+            "$sql" -u root -e "GRANT ALL PRIVILEGES ON \`dmarcator\`.* TO 'dmarcator'@'$h'"
+        else
+            "$sql" -u root -e "GRANT ALL PRIVILEGES ON \`dmarcator\`.* TO '$db_user'@'$h'"
+        fi
+    done
+    "$sql" -u root -e "FLUSH PRIVILEGES; DROP DATABASE \`dmarcula\`"
+    if [[ "$db_user" == dmarcula ]]; then
+        url="${url/:\/\/dmarcula:/://dmarcator:}"
+        if [[ -f "$APP_DIR/.backup.my.cnf" ]]; then sed -i 's/^user=dmarcula$/user=dmarcator/' "$APP_DIR/.backup.my.cnf"; fi
+    fi
+    env_set DATABASE_URL "$(sed -E 's#/dmarcula([?].*)?$#/dmarcator\1#' <<<"$url")"
+    if [[ -f /etc/cron.d/dmarcator ]]; then sed -i 's/--quick dmarcula /--quick dmarcator /' /etc/cron.d/dmarcator; fi
+    info "Database: dmarcator${db_user:+ (account: $([[ "$db_user" == dmarcula ]] && echo dmarcator || echo "$db_user"))}"
+}
+
 # ------------------------------------------------------------------ rename DMARCula → DMARCator (1.2.0)
 # Installations made before 1.2.0 use the name "dmarcula" for the service, directory, system user,
 # database, cron file and backups. Rename them once; the normal update below then takes over.
 migrate_from_dmarcula() {
-    local old_unit=/etc/systemd/system/dmarcula.service old_dir new_dir old_user url sql db_name=dmarcula
+    local old_unit=/etc/systemd/system/dmarcula.service old_dir new_dir old_user db_name=dmarcula
     [[ -f $old_unit && ! -f /etc/systemd/system/dmarcator.service ]] || return 0
     old_dir="$(sed -n 's/^WorkingDirectory=//p' "$old_unit" | head -1)"
     if [[ ! -d "$old_dir/.git" || ! -f "$old_dir/.env" ]]; then
@@ -180,34 +233,7 @@ migrate_from_dmarcula() {
     fi
     if [[ "$(getent passwd "$APP_USER" | cut -d: -f6)" == "$old_dir" ]]; then usermod -d "$new_dir" "$APP_USER"; fi
 
-    # MariaDB database and account dmarcula → dmarcator (all tables move in one atomic statement)
-    url="$(env_get DATABASE_URL)"
-    sql="$(command -v mariadb || command -v mysql || true)"
-    if [[ "$url" == mysql*://dmarcula:*@*/dmarcula && -n "$sql" ]] && "$sql" -e 'SELECT 1' >/dev/null 2>&1 \
-            && [[ -z "$("$sql" -N -e "SHOW DATABASES LIKE 'dmarcator'")" ]]; then
-        local t h renames=""
-        for t in $("$sql" -N -e "SELECT table_name FROM information_schema.tables WHERE table_schema='dmarcula'"); do
-            renames+="${renames:+, }\`dmarcula\`.\`$t\` TO \`dmarcator\`.\`$t\`"
-        done
-        "$sql" -e "CREATE DATABASE \`dmarcator\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
-        if [[ -z "$renames" ]] || "$sql" -e "SET FOREIGN_KEY_CHECKS=0; RENAME TABLE $renames"; then
-            for h in localhost 127.0.0.1; do
-                if [[ -n "$("$sql" -N -e "SELECT 1 FROM mysql.user WHERE user='dmarcula' AND host='$h'")" ]]; then
-                    "$sql" -e "RENAME USER 'dmarcula'@'$h' TO 'dmarcator'@'$h'; GRANT ALL PRIVILEGES ON \`dmarcator\`.* TO 'dmarcator'@'$h'"
-                fi
-            done
-            "$sql" -e "FLUSH PRIVILEGES; DROP DATABASE \`dmarcula\`"
-            env_set DATABASE_URL "$(sed -e 's|://dmarcula:|://dmarcator:|' -e 's|/dmarcula$|/dmarcator|' <<<"$url")"
-            if [[ -f "$APP_DIR/.backup.my.cnf" ]]; then sed -i 's/^user=dmarcula$/user=dmarcator/' "$APP_DIR/.backup.my.cnf"; fi
-            db_name=dmarcator
-            info "Database and account: dmarcator"
-        else
-            "$sql" -e "DROP DATABASE \`dmarcator\`"
-            warn "Database tables could not be moved – the database stays 'dmarcula' (the application works with it)."
-        fi
-    elif [[ "$url" == mysql*/dmarcula ]]; then
-        warn "MariaDB root access not available – the database stays 'dmarcula' (the application works with it)."
-    fi
+    rename_legacy_db && db_name=dmarcator
     if [[ "$(env_get APP_NAME)" == DMARCula ]]; then env_set APP_NAME DMARCator; fi
 
     cd "$APP_DIR"
@@ -268,6 +294,10 @@ for candidate in "${APP_DIR:-}" /opt/dmarcator /home/dmarc/dmarcator "/home/$APP
         sync_code "$APP_DIR"
         cd "$APP_DIR"
         as_app .venv/bin/pip install --quiet --upgrade -r requirements.txt
+        if legacy_db_url >/dev/null; then    # left over from the DMARCula rename
+            systemctl stop dmarcator
+            rename_legacy_db || true
+        fi
         systemctl restart dmarcator
         APP_PORT="$(sed -n 's/.*--port \([0-9]*\).*/\1/p' /etc/systemd/system/dmarcator.service | head -1)"
         APP_PORT="${APP_PORT:-8000}"

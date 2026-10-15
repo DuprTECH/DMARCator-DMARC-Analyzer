@@ -118,7 +118,12 @@ It finds the old `dmarcula.service` and renames the installation in place:
 Data, mailbox settings, users and sign-in settings stay as they are. The Apache / nginx site file
 keeps its old name; it only points to the local port, which does not change. If the database
 can't be renamed (no root access over the socket, or the tables can't be moved), it keeps the
-name `dmarcula` and the application keeps working with it.
+name `dmarcula` and the application keeps working with it. To rename it later, run the installer
+again with the MariaDB root password:
+
+```bash
+read -rs -p "MariaDB root password: " MYSQL_PWD && export MYSQL_PWD && sudo -E bash install.sh; unset MYSQL_PWD
+```
 
 **Other installations:**
 

@@ -1,3 +1,5 @@
+import csv
+import io
 import re
 import threading
 
@@ -258,9 +260,8 @@ def user_delete(uid: int, request: Request, me: User = Depends(admin_required), 
 DOMAIN_RE = re.compile(r"^(?=.{4,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{1,62}$")
 
 
-@router.post("/domains/add", dependencies=[Depends(verify_csrf)])
-def domains_add(request: Request, domains: str = Form(...), db: Session = Depends(get_db)):
-    names = {n.strip().lower().rstrip(".") for n in re.split(r"[\s,;]+", domains) if n.strip()}
+def _add_domains(request: Request, db: Session, names: set[str]) -> None:
+    """Add new domains, check their DNS in the background and flash a summary."""
     invalid = sorted(n for n in names if not DOMAIN_RE.match(n))
     valid = names - set(invalid)
     existing = set(db.scalars(select(Domain.name).where(Domain.name.in_(valid)))) if valid else set()
@@ -275,6 +276,64 @@ def domains_add(request: Request, domains: str = Form(...), db: Session = Depend
     if invalid:
         msg += f" Neplatné: {', '.join(invalid[:10])}."
     flash(request, msg, "warn" if invalid else "ok")
+
+
+def domains_from_csv(blob: bytes) -> set[str]:
+    """Domains from a CSV / TXT file: in every row the first cell that looks like a domain, so header
+    rows and extra columns (status, DNS records, … from admin-center exports) are skipped."""
+    try:
+        text = blob.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = blob.decode("cp1250", errors="replace")
+    try:
+        dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t")
+    except csv.Error:
+        dialect = csv.excel
+    names: set[str] = set()
+    for row in csv.reader(io.StringIO(text), dialect):
+        for cell in row:
+            name = cell.strip().strip('"').lower().rstrip(".")
+            if DOMAIN_RE.match(name):
+                if not name.endswith(".onmicrosoft.com"):
+                    names.add(name)
+                break
+    return names
+
+
+@router.post("/domains/add", dependencies=[Depends(verify_csrf)])
+async def domains_add(request: Request, domains: str = Form(""), file: UploadFile | None = File(None),
+                      db: Session = Depends(get_db)):
+    names = {n.strip().lower().rstrip(".") for n in re.split(r"[\s,;]+", domains) if n.strip()}
+    if file is not None and file.filename:
+        blob = await file.read(5 * 1024 * 1024 + 1)
+        if len(blob) > 5 * 1024 * 1024:
+            flash(request, f"{file.filename}: súbor je príliš veľký", "error")
+            return RedirectResponse("/domains", 303)
+        names |= domains_from_csv(blob)
+    if not names:
+        flash(request, "V zozname ani v súbore sa nenašla žiadna doména.", "warn")
+        return RedirectResponse("/domains", 303)
+    _add_domains(request, db, names)
+    return RedirectResponse("/domains", 303)
+
+
+@router.post("/domains/import-m365", dependencies=[Depends(verify_csrf)])
+def domains_import_m365(request: Request, db: Session = Depends(get_db)):
+    sources = db.scalars(select(MailSource).where(MailSource.kind == "graph")).all()
+    if not sources:
+        flash(request, "Najprv pridajte schránku typu Exchange Online (Graph) – jej aplikácia sa použije na čítanie domén.", "warn")
+        return RedirectResponse("/domains", 303)
+    names: set[str] = set()
+    for src in sources:
+        try:
+            names |= set(open_mailbox(src).tenant_domains())
+        except Exception as exc:  # noqa: BLE001
+            flash(request, f"{src.name}: {exc} – aplikácia potrebuje oprávnenie Domain.Read.All (Application) so súhlasom správcu.", "error")
+            return RedirectResponse("/domains", 303)
+    if not names:
+        flash(request, "Tenant nemá žiadne overené vlastné domény.", "warn")
+        return RedirectResponse("/domains", 303)
+    _add_domains(request, db, names)
     return RedirectResponse("/domains", 303)
 
 

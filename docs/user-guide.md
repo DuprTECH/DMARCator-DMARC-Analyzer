@@ -38,7 +38,7 @@ SPF domain, plus the ASN when GeoIP is configured.
 
 ## Domains (*Domény*)
 
-Every domain for which at least one report has arrived is listed automatically. Admins can also **add domains manually** (*Add domains manually*, one per line or comma separated). Manually added domains are DNS-checked immediately and then daily with all other domains, even before their first report arrives, which is handy for parked domains. The page has:
+Every domain for which at least one report has arrived is listed automatically. Admins can also **add domains manually** (*Add domains manually*): type them (one per line or comma separated), upload a **CSV / TXT file** (for example the domain export from the Microsoft 365 admin center – the first column that looks like a domain is taken from each row, `*.onmicrosoft.com` is skipped), or click **Import domains from Microsoft 365** to read all verified domains of the tenant ([permission](microsoft-365.md#importing-tenant-domains)). Domains without any DMARC or DKIM record show up with an error status, so missing setup is easy to find. Manually added domains are DNS-checked immediately and then daily with all other domains, even before their first report arrives, which is handy for parked domains. The page has:
 
 - **Summary tiles:** how many domains publish `p=reject`, `p=quarantine`, `p=none` or no DMARC
   record, and how many need attention.

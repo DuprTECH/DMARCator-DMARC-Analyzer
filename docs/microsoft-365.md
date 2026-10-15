@@ -109,6 +109,14 @@ client ID and secret.
 Exchange Online doesn't allow IMAP with a password (basic auth). Password login is meant for
 other mail servers (Gmail with an app password, Dovecot, Zimbra, …).
 
+### Importing tenant domains
+
+*Domains → Add domains manually → Import domains from Microsoft 365* reads every verified domain of
+the tenant (`GET /domains`) with the app of the Exchange Online mailbox. Add the Microsoft Graph
+**application** permission **`Domain.Read.All`** to that app registration and **grant admin
+consent**. It only reads domain names; it changes nothing. Without it the import shows
+`HTTP 403 Authorization_RequestDenied`. The domains are then checked daily like all others.
+
 ## 6. DNS records for your domains
 
 | Record | Value | Purpose |

@@ -95,6 +95,16 @@ class GraphMailbox:
 
     # ------------------------------------------------------------- API
 
+    def tenant_domains(self) -> list[str]:
+        """Verified domains of the Microsoft 365 / Entra ID tenant, without *.onmicrosoft.com.
+        Needs the Domain.Read.All application permission."""
+        url, names = f"{self.graph}/v1.0/domains?$select=id,isVerified", []
+        while url:
+            data = self._req("GET", url).json()
+            names += [d["id"].lower() for d in data.get("value", []) if d.get("isVerified")]
+            url = data.get("@odata.nextLink")
+        return sorted(n for n in names if not n.endswith(".onmicrosoft.com"))
+
     def test(self) -> str:
         fid = self.resolve_folder(self.cfg.get("folder") or "Inbox")
         info = self._req("GET", f"/mailFolders/{fid}", params={"$select": "displayName,totalItemCount,unreadItemCount"}).json()

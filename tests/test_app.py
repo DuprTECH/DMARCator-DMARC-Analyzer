@@ -112,3 +112,39 @@ def test_mailbox_retention_form():
         with session_scope() as db:
             assert decrypt_json(db.get(MailSource, sid).config_encrypted)["cleanup_enabled"] is False
         assert 'name="cleanup_enabled"' not in client.get("/admin/sources/new?kind=imap").text
+
+
+def test_domains_from_csv_and_m365(monkeypatch):
+    from sqlalchemy import select
+
+    from app.db import session_scope
+    from app.models import Domain
+
+    m365_export = ("Domain name,Status,Choose a default domain\n"
+                   "csv-one.sk,Healthy,No\ncontoso.onmicrosoft.com,Healthy,No\n\"csv-two.cz\",Incomplete setup,No\n").encode()
+    assert admin_routes.domains_from_csv(m365_export) == {"csv-one.sk", "csv-two.cz"}
+    assert admin_routes.domains_from_csv("Doména;Poznámka\ncsv-three.eu;hotel\n".encode("cp1250")) == {"csv-three.eu"}
+    assert admin_routes.domains_from_csv(b"csv-four.com\r\ncsv-five.com\r\n") == {"csv-four.com", "csv-five.com"}
+
+    with TestClient(app) as client:
+        login(client)
+        token = csrf(client.get("/domains").text)
+        r = client.post("/admin/domains/add", data={"csrf_token": token, "domains": "typed.sk"},
+                        files={"file": ("domains.csv", m365_export, "text/csv")})
+        assert r.status_code == 200 and "Pridané domény: 3" in r.text
+
+        class FakeGraph:
+            def tenant_domains(self):
+                return ["tenant-a.sk", "tenant-b.com"]
+
+        from app.models import MailSource
+
+        with session_scope() as db:
+            if not db.scalar(select(MailSource.id).where(MailSource.kind == "graph")):
+                db.add(MailSource(name="m365", kind="graph", config_encrypted="x"))
+        monkeypatch.setattr(admin_routes, "open_mailbox", lambda src: FakeGraph())
+        r = client.post("/admin/domains/import-m365", data={"csrf_token": token})
+        assert "Pridané domény: 2" in r.text
+    with session_scope() as db:
+        names = set(db.scalars(select(Domain.name)))
+    assert {"typed.sk", "csv-one.sk", "csv-two.cz", "tenant-a.sk", "tenant-b.com"} <= names

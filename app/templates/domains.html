@@ -29,11 +29,19 @@
 {% if user.role == 'admin' %}
 <details class="card mt">
   <summary>{{ icon('globe') }} {{ _('Pridať domény ručne') }}</summary>
-  <form class="mt" method="post" action="/admin/domains/add">
+  <form class="mt" method="post" action="/admin/domains/add" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf }}">
     <p class="hint" style="margin-top:0">{{ _('Domény sa pridávajú aj automaticky z prijatých reportov. Ručne pridané domény sa hneď skontrolujú (DMARC, SPF, DKIM, MX, MTA-STS, TLS-RPT, BIMI) a potom raz denne – aj keď pre ne ešte neprišiel žiadny report.') }}</p>
-    <textarea name="domains" rows="4" placeholder="example.com&#10;example.org" required></textarea>
+    <textarea name="domains" rows="4" placeholder="example.com&#10;example.org"></textarea>
+    <div class="field mt"><label for="dom-file">{{ _('alebo súbor CSV / TXT') }}</label>
+      <input id="dom-file" type="file" name="file" accept=".csv,.txt,text/csv,text/plain">
+      <span class="hint">{{ _('napr. export domén z Microsoft 365 admin centra – z každého riadku sa vezme prvý stĺpec, ktorý vyzerá ako doména') }}</span></div>
     <div class="actions mt"><button class="btn primary" type="submit">{{ _('Pridať a skontrolovať') }}</button><span class="hint">{{ _('jedna doména na riadok, alebo oddelené čiarkou') }}</span></div>
+  </form>
+  <form class="mt" method="post" action="/admin/domains/import-m365">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <div class="actions"><button class="btn" type="submit">{{ icon('download') }} {{ _('Načítať domény z Microsoft 365') }}</button>
+      <span class="hint">{{ _('overené domény tenanta cez aplikáciu schránky Exchange Online – potrebuje oprávnenie Domain.Read.All') }}</span></div>
   </form>
 </details>
 {% endif %}

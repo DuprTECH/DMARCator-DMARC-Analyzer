@@ -20,6 +20,10 @@ The running version is shown in the page footer, by `GET /healthz` and by `pytho
   `git reflog`); local edits stop the installer before anything is changed.
 - `python -m app.manage geoip-refresh` writes country / ASN into reports imported before the
   GeoLite2 databases were configured; step-by-step GeoLite2 setup in the configuration guide.
+- **Domains from a file or from Microsoft 365:** *Add domains manually* accepts a CSV / TXT file
+  (e.g. the Microsoft 365 admin-center export), and *Import domains from Microsoft 365* reads all
+  verified tenant domains via Graph (`Domain.Read.All`). Imported domains are DNS-checked right away
+  and then daily, so domains without DMARC or DKIM show up even before any report arrives.
 - Messages without a report (ordinary mail, forwards, auto-replies, forensic reports that identify
   no domain, IP or original message) are logged as *info* instead of *error* and can be moved to
   their own folder: new mailbox setting *Move messages without a report to* (empty = failed folder).

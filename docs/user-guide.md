@@ -42,6 +42,9 @@ Every domain for which at least one report has arrived is listed automatically. 
 
 - **Summary tiles:** how many domains publish `p=reject`, `p=quarantine`, `p=none` or no DMARC
   record, and how many need attention.
+- **DNS charts** over all domains, from the latest DNS check: status of DMARC, SPF, DKIM, MTA-STS,
+  TLS-RPT and BIMI (OK / warning / error / not set), the A–F DNS score distribution, DKIM key length,
+  SPF DNS lookups against the limit of 10, and the mail provider from MX. Hover a bar for counts.
 - **Search and filters** by name, policy, status (*Chyba* error / *Upozornenie* warning / OK),
   and "only with traffic". Useful with 100+ domains.
 - **Stav** (status) column with the most important issue of each domain.

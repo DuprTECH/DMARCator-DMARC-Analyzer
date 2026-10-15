@@ -64,7 +64,8 @@ def domains(request: Request, f: Filter = Depends(flt), db: Session = Depends(ge
             d["issues"] = [x["msg"] for x in r.get("recommendations", []) if x["level"] in ("error", "warn")]
         return overview
 
-    return render(request, "domains.html", _ctx(db, f, domains=cached(("domains", f.start, f.end), compute)))
+    return render(request, "domains.html", _ctx(db, f, domains=cached(("domains", f.start, f.end), compute),
+                                                posture=cached(("dns_posture",), lambda: stats.dns_posture(db))))
 
 
 @router.get("/domains/{name}")

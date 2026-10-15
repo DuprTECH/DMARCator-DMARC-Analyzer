@@ -26,6 +26,33 @@
   <div class="card kpi"><div class="label">{{ _('Vyžaduje zásah') }}</div><div class="value">{{ by_level.error + by_level.warn }}</div><div class="foot">{{ _('{e} chýb · {w} upozornení', e=by_level.error, w=by_level.warn) }}</div></div>
 </div>
 
+{% if domains %}
+<div class="grid g-21 mt">
+  <div class="card">
+    <div class="card-head"><h2>{{ _('Stav DNS záznamov') }}</h2><span class="hint">{{ _('všetky domény · posledná kontrola DNS') }}</span></div>
+    <div id="ch-checks" class="chart tall" role="img" aria-label="{{ _('Počet domén podľa stavu DMARC, SPF, DKIM, MTA-STS, TLS-RPT a BIMI') }}"></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>{{ _('DNS skóre') }}</h2><span class="hint">A–F</span></div>
+    <div id="ch-grades" class="chart tall" role="img" aria-label="{{ _('Počet domén podľa DNS skóre') }}"></div>
+  </div>
+</div>
+<div class="grid g-3 mt">
+  <div class="card">
+    <div class="card-head"><h2>{{ _('DKIM kľúče') }}</h2><span class="hint">{{ _('najsilnejší kľúč domény') }}</span></div>
+    <div id="ch-dkim" class="chart short" role="img" aria-label="{{ _('Počet domén podľa dĺžky DKIM kľúča') }}"></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>{{ _('SPF – DNS lookupy') }}</h2><span class="hint">{{ _('limit 10') }}</span></div>
+    <div id="ch-spf" class="chart short" role="img" aria-label="{{ _('Počet domén podľa počtu SPF DNS lookupov') }}"></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>{{ _('Poskytovateľ pošty (MX)') }}</h2></div>
+    <div id="ch-mx" class="chart short" role="img" aria-label="{{ _('Počet domén podľa poskytovateľa MX') }}"></div>
+  </div>
+</div>
+{% endif %}
+
 {% if user.role == 'admin' %}
 <details class="card mt">
   <summary>{{ icon('globe') }} {{ _('Pridať domény ručne') }}</summary>
@@ -87,6 +114,36 @@
 </div>
 {% endblock %}
 {% block scripts %}
+{% if domains %}
+<script>
+(function () {
+  const P = {{ posture|jsonify }};
+  DM.stateStack(document.getElementById("ch-checks"), P.checks, [
+    {key: "ok", name: "{{ _('OK') }}", color: "good"},
+    {key: "warn", name: "{{ _('Upozornenie') }}", color: "warning"},
+    {key: "error", name: "{{ _('Chyba') }}", color: "critical"},
+    {key: "missing", name: "{{ _('Nenastavené') }}", color: "muted"},
+    {key: "unknown", name: "{{ _('Nezistené') }}", color: "grid"},
+  ]);
+  const G = {A: "good", B: "s3", C: "warning", D: "serious", F: "critical", "?": "muted"};
+  DM.hbar(document.getElementById("ch-grades"), Object.keys(G).map((g) => ({name: g, value: P.grades[g], color: G[g]})));
+  DM.hbar(document.getElementById("ch-dkim"), [
+    {name: "{{ _('2048 bitov a viac') }}", value: P.dkim_keys["2048"], color: "good"},
+    {name: "{{ _('1024 bitov') }}", value: P.dkim_keys["1024"], color: "warning"},
+    {name: "{{ _('kratší ako 1024') }}", value: P.dkim_keys.weak, color: "critical"},
+    {name: "{{ _('bez DKIM') }}", value: P.dkim_keys.none, color: "muted"},
+  ]);
+  DM.hbar(document.getElementById("ch-spf"), [
+    {name: "{{ _('0–7 lookupov') }}", value: P.spf_lookups.le7, color: "good"},
+    {name: "{{ _('8–10 (blízko limitu)') }}", value: P.spf_lookups["8-10"], color: "warning"},
+    {name: "{{ _('viac ako 10 (permerror)') }}", value: P.spf_lookups.gt10, color: "critical"},
+    {name: "{{ _('bez SPF') }}", value: P.spf_lookups.none, color: "muted"},
+  ]);
+  const MX = {"Iné": "{{ _('Iné') }}", "Bez MX": "{{ _('Bez MX') }}"};
+  DM.hbar(document.getElementById("ch-mx"), P.mx.slice(0, 8).map(([name, value]) => ({name: MX[name] || name, value: value})));
+})();
+</script>
+{% endif %}
 <script>
 (function () {
   const q = document.getElementById("dom-q"), pol = document.getElementById("dom-policy"),

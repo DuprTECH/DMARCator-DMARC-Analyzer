@@ -73,7 +73,8 @@ Compliance, volume, alignment, services, recommendations, countries and domain t
 <details>
 <summary><strong>Domains — policy, DNS health and compliance</strong></summary>
 
-Search and filter domains, compare DNS scores, review policies and spot domains needing attention.
+DNS charts over all domains (DMARC, SPF, DKIM, MTA-STS, TLS-RPT, BIMI status, DNS score, DKIM key length,
+SPF lookups, MX provider), then search and filter domains, compare DNS scores and spot domains needing attention.
 
 ![Domain policy and compliance table](docs/screenshots/domains.png)
 

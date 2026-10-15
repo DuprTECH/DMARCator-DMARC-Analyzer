@@ -316,6 +316,53 @@ def domains_overview(db: Session, f: Filter) -> list[dict]:
     return out
 
 
+DNS_CHECKS = (("dmarc", "DMARC"), ("spf", "SPF"), ("dkim", "DKIM"), ("mta_sts", "MTA-STS"),
+              ("tls_rpt", "TLS-RPT"), ("bimi", "BIMI"))
+DNS_STATES = ("ok", "warn", "error", "missing", "unknown")
+
+
+def _check_state(result: dict | None, key: str) -> str:
+    """ok / warn / error for a published record, "missing" when there is none, "unknown" when the
+    domain wasn't checked yet or the DNS server didn't answer."""
+    if not result or key not in result:
+        return "unknown"
+    r = result[key]
+    if r.get("status") == "unknown":
+        return "unknown"
+    present = bool(r.get("selectors")) if key == "dkim" else bool(r.get("record"))
+    if not present:
+        return "missing"
+    return {"warn": "warn", "error": "error"}.get(r.get("status"), "ok")
+
+
+def dns_posture(db: Session) -> dict:
+    """DNS state of all domains for the charts on the Domains page (from the stored DNS checks)."""
+    checks = {key: dict.fromkeys(DNS_STATES, 0) for key, _ in DNS_CHECKS}
+    grades = dict.fromkeys(("A", "B", "C", "D", "F", "?"), 0)
+    dkim_keys = dict.fromkeys(("2048", "1024", "weak", "none"), 0)
+    spf_lookups = dict.fromkeys(("le7", "8-10", "gt10", "none"), 0)
+    mx: dict[str, int] = defaultdict(int)
+    for dns in db.scalars(select(Domain.dns)):
+        for key, _ in DNS_CHECKS:
+            checks[key][_check_state(dns, key)] += 1
+        dns = dns or {}
+        grades[dns.get("grade") if dns.get("grade") in grades else "?"] += 1
+        bits = [s.get("bits") or 2048 for s in (dns.get("dkim") or {}).get("selectors", []) if not s.get("revoked")]
+        dkim_keys["none" if not bits else "2048" if max(bits) >= 2048 else "1024" if max(bits) >= 1024 else "weak"] += 1
+        spf = dns.get("spf") or {}
+        n = spf.get("lookups") or 0
+        spf_lookups["none" if not spf.get("record") else "le7" if n <= 7 else "8-10" if n <= 10 else "gt10"] += 1
+        hosts = (dns.get("mx") or {}).get("hosts") or []
+        mx[(dns.get("mx") or {}).get("provider") or ("Iné" if hosts else "Bez MX")] += 1
+    return {
+        "checks": [{"key": key, "name": name, **checks[key]} for key, name in DNS_CHECKS],
+        "grades": grades,
+        "dkim_keys": dkim_keys,
+        "spf_lookups": spf_lookups,
+        "mx": sorted(mx.items(), key=lambda kv: (-kv[1], kv[0])),
+    }
+
+
 # --------------------------------------------------------------- insights
 
 

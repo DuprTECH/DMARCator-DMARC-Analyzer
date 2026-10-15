@@ -25,6 +25,9 @@ The running version is shown in the page footer, by `GET /healthz` and by `pytho
   verified tenant domains via Graph (`Domain.Read.All`); with the mailbox option *Import domains from
   Microsoft 365 automatically* this also runs with every daily DNS check. Imported domains are DNS-checked right away
   and then daily, so domains without DMARC or DKIM show up even before any report arrives.
+- **DNS charts on the Domains page:** how many domains have DMARC, SPF, DKIM, MTA-STS, TLS-RPT
+  and BIMI OK / with warnings / with errors / not set, DNS score A–F, DKIM key length, SPF lookups and
+  MX provider.
 - **New LDAP / SSO users get no access until approved:** new role `none`, now the default
   `DEFAULT_ROLE` for new installations. Such users see *waiting for approval* and show up in *Users*,
   where an administrator grants `viewer` or `admin`. An admin group now decides only about the admin

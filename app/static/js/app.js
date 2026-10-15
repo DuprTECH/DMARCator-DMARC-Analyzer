@@ -186,10 +186,41 @@
           yAxis: { type: "category", data: rows.map((r) => t(r.name)), axisLine: { show: false }, axisTick: { show: false },
             axisLabel: { color: p.text2, fontSize: 12, width: 150, overflow: "truncate" } },
           series: [{
-            type: "bar", barMaxWidth: 14, data: rows.map((r) => r.value),
+            type: "bar", barMaxWidth: 14,
+            // optional per-row colour (status keys such as "good" / "critical") for state breakdowns
+            data: rows.map((r) => (r.color ? { value: r.value, itemStyle: { color: colorOf(p, r.color) } } : r.value)),
             itemStyle: { color: opts.color ? p[opts.color] : p.accent, borderRadius: [0, 4, 4, 0] },
             label: { show: true, position: "right", color: p.muted, fontSize: 11, formatter: (i) => fmt(i.value) },
           }],
+        });
+      });
+    },
+
+    /** One horizontal bar per row (e.g. a DNS check), stacked by state; every row sums to all domains.
+     *  states: [{key, name, color}] in stacking order. */
+    stateStack(el, rows, states) {
+      return register(el, (p) => {
+        const names = rows.map((r) => r.name).reverse();
+        const data = rows.slice().reverse();
+        const total = (r) => states.reduce((s, st) => s + (r[st.key] || 0), 0);
+        return Object.assign(base(p), {
+          grid: { left: 8, right: 16, top: 36, bottom: 4, containLabel: true },
+          legend: { top: 0, left: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10, textStyle: { color: p.text2 } },
+          tooltip: Object.assign(base(p).tooltip, { trigger: "axis", axisPointer: { type: "shadow", shadowStyle: { color: p.surface2, opacity: .6 } },
+            formatter: (items) => {
+              const r = data[items[0].dataIndex];
+              return `<b>${r.name}</b><br>` + items.filter((i) => i.value).map((i) =>
+                `${i.marker} ${i.seriesName}: <b>${fmt(i.value)}</b> (${pct(100 * i.value / (total(r) || 1))})`).join("<br>");
+            } }),
+          xAxis: Object.assign({ type: "value", minInterval: 1, max: Math.max(1, ...data.map(total)) }, axisCommon(p)),
+          yAxis: { type: "category", data: names, axisLine: { show: false }, axisTick: { show: false },
+            axisLabel: { color: p.text2, fontSize: 12 } },
+          series: states.map((st, i) => ({
+            name: st.name, type: "bar", stack: "s", barMaxWidth: 18, data: data.map((r) => r[st.key] || 0),
+            itemStyle: { color: colorOf(p, st.color), borderColor: p.surface, borderWidth: 1,
+              borderRadius: i === states.length - 1 ? [0, 4, 4, 0] : 0 },
+            emphasis: { focus: "series" },
+          })),
         });
       });
     },

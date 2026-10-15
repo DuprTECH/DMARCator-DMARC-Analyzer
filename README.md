@@ -52,33 +52,41 @@ identity. See the [user guide](docs/user-guide.md) for interpretation and the
 
 ## Screenshots
 
-These previews have identifying fields replaced with reserved example domains, documentation
-IP addresses and sample text. Some aggregate counts and chart shapes are retained to illustrate
-the layout; the images are **not a consistent demo dataset**. Long tables are cropped and
-account identities are hidden. Only flattened, metadata-free anonymized copies are included.
+All screenshots come from the built-in synthetic demo dataset (`python -m app.demo`), with
+fictitious domains (contoso.sk, fabrikam.sk, firmaNNN.*) and a mailbox and DNS results seeded for
+the demo. They contain **no real customer data**. Long pages are cropped.
 
 ### Overview
 
-Compliance, volume, alignment, services, recommendations and domain trends in one dashboard.
+Compliance, volume, alignment, services, recommendations, countries and domain trends in one dashboard.
 
-![Anonymized DMARCula overview dashboard](docs/screenshots/overview.png)
+![DMARCula overview dashboard](docs/screenshots/overview.png)
 
 <details>
 <summary><strong>Domains — policy, DNS health and compliance</strong></summary>
 
 Search and filter domains, compare DNS scores, review policies and spot domains needing attention.
 
-![Anonymized domain policy and compliance table](docs/screenshots/domains.png)
+![Domain policy and compliance table](docs/screenshots/domains.png)
+
+</details>
+
+<details>
+<summary><strong>Domain detail — DNS audit and policy enforcement readiness</strong></summary>
+
+A–F DNS score, readiness for p=reject, per-domain trends and the DMARC, SPF, DKIM, MX, MTA-STS,
+TLS-RPT and BIMI checks, plus the services sending on behalf of the domain.
+
+![Domain detail with DNS configuration](docs/screenshots/domain-detail.png)
 
 </details>
 
 <details>
 <summary><strong>Senders — services, failure combinations and source IPs</strong></summary>
 
-Investigate SPF/DKIM combinations and source categories. This formerly long screenshot is
-cropped to the summary and the first source rows.
+Investigate SPF/DKIM failure combinations, source IPs, PTR names, countries and traffic categories.
 
-![Anonymized sender analysis with shortened source table](docs/screenshots/senders.png)
+![Sender analysis](docs/screenshots/senders.png)
 
 </details>
 
@@ -87,36 +95,43 @@ cropped to the summary and the first source rows.
 
 Browse reporting organizations, report periods, policies and message compliance.
 
-![Anonymized aggregate report list](docs/screenshots/aggregate.png)
+![Aggregate report list](docs/screenshots/aggregate.png)
 
 </details>
 
 <details>
 <summary><strong>Forensic reports (RUF)</strong></summary>
 
-Inspect individual failure metadata. Actual subjects, addresses, domains, hostnames and IPs
-have been replaced in this preview.
+Inspect individual failed messages: source, sender and recipient, subject, failure type and reporter.
 
-![Anonymized forensic report metadata](docs/screenshots/forensic.png)
+![Forensic report list](docs/screenshots/forensic.png)
 
 </details>
 
 <details>
-<summary><strong>Tools — DNS audit and DMARC record generator</strong></summary>
+<summary><strong>SMTP TLS reports (TLS-RPT)</strong></summary>
 
-Review DMARC, SPF, DKIM, MX, MTA-STS, TLS-RPT and BIMI checks, and prepare a DMARC TXT record.
-DNS values in this screenshot are illustrative replacements, not deployable configuration.
+TLS session success rate, failure types and per-MX details from RFC 8460 reports.
 
-![Anonymized DNS audit and DMARC record generator](docs/screenshots/tools.png)
+![TLS-RPT overview](docs/screenshots/tls.png)
+
+</details>
+
+<details>
+<summary><strong>Tools — domain check and DMARC record generator</strong></summary>
+
+Check DNS posture of any domain and prepare a DMARC TXT record to publish.
+
+![Domain check and DMARC record generator](docs/screenshots/tools.png)
 
 </details>
 
 <details>
 <summary><strong>Mailbox administration and processing log</strong></summary>
 
-Configure mailbox sources and inspect polling results and processing status.
+Configure Exchange Online (Graph) or IMAP sources and inspect polling results and processing status.
 
-![Anonymized mailbox administration and shortened processing log](docs/screenshots/mailboxes.png)
+![Mailbox administration and processing log](docs/screenshots/mailboxes.png)
 
 </details>
 

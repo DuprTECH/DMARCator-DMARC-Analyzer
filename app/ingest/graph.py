@@ -9,7 +9,7 @@ from urllib.parse import quote
 import httpx
 import msal
 
-from .retention import retention_days
+from .retention import retention_days, target_folder
 
 log = logging.getLogger(__name__)
 # keeps the pre-rename name: messages already marked in mailboxes must still be recognised
@@ -23,7 +23,7 @@ class GraphError(Exception):
 class GraphMailbox:
     """
     Required config keys: tenant_id, client_id, mailbox and client_secret or (cert_pem + cert_thumbprint).
-    Optional: folder (default "Inbox", path like "Inbox/DMARC"), processed_folder, failed_folder,
+    Optional: folder (default "Inbox", path like "Inbox/DMARC"), processed_folder, failed_folder, noreport_folder,
               only_unread (bool), mark_read (bool), authority_host, graph_endpoint.
     Application permission needed: Mail.ReadWrite (or Mail.Read when neither moving nor marking read),
     ideally scoped to the report mailbox with Exchange RBAC for Applications.
@@ -115,8 +115,10 @@ class GraphMailbox:
             raw = self._req("GET", f"/messages/{mid}/$value").content
             yield mid, subject, raw
 
-    def done(self, message_id: str, ok: bool):
-        target = self.cfg.get("processed_folder") if ok else (self.cfg.get("failed_folder") or None)
+    def done(self, message_id: str, outcome: str):
+        """outcome: "ok" (report stored), "noreport" (no report in the message) or "failed"."""
+        ok = outcome == "ok"
+        target = target_folder(self.cfg, outcome)
         patch = {}
         if self.cfg.get("mark_read", True):
             patch["isRead"] = True
@@ -134,8 +136,7 @@ class GraphMailbox:
             return 0
         folder = self.resolve_folder(self.cfg["processed_folder"])
         protected = [self.cfg.get("folder") or "Inbox", "Inbox", "DeletedItems", "SentItems", "JunkEmail", "Archive"]
-        if self.cfg.get("failed_folder"):
-            protected.append(self.cfg["failed_folder"])
+        protected += [self.cfg[k] for k in ("failed_folder", "noreport_folder") if self.cfg.get(k)]
         if folder in {self.resolve_folder(path) for path in protected}:
             raise GraphError("Čistenie odmietnuté: priečinok spracovaných nie je samostatný.")
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)

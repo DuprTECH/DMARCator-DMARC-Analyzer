@@ -118,12 +118,23 @@ def test_only_successful_reports_are_marked():
     box = mailbox(mark_read=False)
     calls = []
     box._req = lambda method, path, **kw: calls.append((method, path, kw))
-    box.done("bad", False)
+    box.done("bad", "failed")
     assert [c[0] for c in calls] == ["POST"]
     assert calls[0][2]["json"]["destinationId"] == "inbox-error"
     calls.clear()
-    box.done("good", True)
+    box.done("good", "ok")
     assert calls[0][0] == "PATCH"
     assert calls[0][2]["json"] == {
         "singleValueExtendedProperties": [{"id": PROCESSED_PROPERTY, "value": "true"}],
     }
+
+
+def test_target_folders():
+    from app.ingest.retention import target_folder
+
+    cfg = {"processed_folder": "Inbox/Done", "failed_folder": "Inbox/Error"}
+    assert target_folder(cfg, "ok") == "Inbox/Done"
+    assert target_folder(cfg, "failed") == "Inbox/Error"
+    assert target_folder(cfg, "noreport") == "Inbox/Error"  # falls back to the failed folder
+    assert target_folder({**cfg, "noreport_folder": "Inbox/No report"}, "noreport") == "Inbox/No report"
+    assert target_folder({}, "noreport") is None

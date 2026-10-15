@@ -154,7 +154,8 @@ If the database can't be read, the log shows `GeoIP DB … unavailable`.
 | Host, port, security, username, password | – | ✔ | IMAP connection. |
 | Report folder | ✔ | ✔ | `Inbox`, `Inbox/DMARC`, … (IMAP: `INBOX`). |
 | Move processed to | ✔ | ✔ | Created if missing. Empty means messages aren't moved. |
-| Move failed to | ✔ | ✔ | Messages without a valid report. |
+| Move failed to | ✔ | ✔ | Messages whose report could not be read or stored (logged as *error*). |
+| Move messages without a report to | ✔ | ✔ | Ordinary mail, forwards, auto-replies and forensic reports that identify nothing (logged as *info*). Empty means the same folder as failed messages. |
 | Only unread / mark as read | ✔ | ✔ | With "only unread" off, the whole folder is processed. Duplicates are skipped. |
 | Automatically delete old processed messages / retention days | ✔ | – | Off by default; 30 days suggested, allowed range 1–3650 days. Global Microsoft Graph only. Requires a dedicated processed folder separate from input and failed folders. |
 | Authority host, Graph endpoint | ✔ | – | National clouds (GCC High, 21Vianet). |

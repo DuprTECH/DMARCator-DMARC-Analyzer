@@ -38,6 +38,8 @@ class ParsedReport:
 class ExtractResult:
     reports: list[ParsedReport] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    # why a message that looked like a report holds nothing usable (it is then "without a report")
+    notes: list[str] = field(default_factory=list)
 
 
 # --------------------------------------------------------------- helpers
@@ -340,7 +342,7 @@ def parse_forensic(msg: Message, fallback: dict | None = None) -> ParsedReport:
 
     orig = HeaderParser().parsestr(headers_text) if headers_text else None
     if not (fields.get("reported-domain") or fields.get("source-ip") or (orig and orig.get("From"))):
-        raise ParseError("Chýba message/feedback-report časť")
+        raise ParseError("forenzný report bez domény, IP adresy a pôvodných hlavičiek")
     arrival = None
     for candidate in (fields.get("arrival-date"), fields.get("received-date"), orig.get("Date") if orig else None):
         if candidate:
@@ -394,6 +396,7 @@ def _classify_blob(name: str, blob: bytes, result: ExtractResult):
                 sub = extract_from_email(data)
                 result.reports.extend(sub.reports)
                 result.errors.extend(sub.errors)
+                result.notes.extend(sub.notes)
         except ParseError as exc:
             result.errors.append(f"{fname or 'príloha'}: {exc}")
 
@@ -424,7 +427,7 @@ def extract_from_email(raw: bytes) -> ExtractResult:
         try:
             result.reports.append(parse_forensic(msg, _subject_fields(msg)))
         except ParseError as exc:
-            result.errors.append(str(exc))
+            result.notes.append(str(exc))
         return result
 
     for part in msg.walk():
@@ -445,7 +448,7 @@ def extract_from_email(raw: bytes) -> ExtractResult:
             try:
                 result.reports.append(parse_forensic(msg, fallback))
             except ParseError as exc:
-                result.errors.append(str(exc))
+                result.notes.append(str(exc))
     return result
 
 

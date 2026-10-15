@@ -42,6 +42,7 @@
     {{ text('folder', _('Priečinok s reportmi'), _('napr. Inbox alebo Inbox/DMARC')) }}
     {{ text('processed_folder', _('Presunúť spracované do'), _('Prázdne = nepresúvať. Priečinok sa vytvorí.')) }}
     {{ text('failed_folder', _('Presunúť chybné do'), _('Prázdne = ponechať')) }}
+    {{ text('noreport_folder', _('Presunúť správy bez reportu do'), _('napr. Inbox/Bez reportu. Prázdne = ako chybné.')) }}
     <div class="field"><label>{{ _('Správanie') }}</label>
       <label class="toggle"><input type="checkbox" name="only_unread" {% if cfg.get('only_unread') %}checked{% endif %}> {{ _('Spracovať iba neprečítané') }}</label>
       <label class="toggle"><input type="checkbox" name="mark_read" {% if cfg.get('mark_read') %}checked{% endif %}> {{ _('Označiť ako prečítané') }}</label>

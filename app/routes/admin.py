@@ -43,9 +43,9 @@ SECRET_FIELDS = ("client_secret", "password", "cert_pem")
 BOOL_FIELDS = ("only_unread", "mark_read", "tls_verify")
 FIELDS = {
     "graph": ("tenant_id", "client_id", "client_secret", "cert_pem", "cert_thumbprint", "mailbox", "folder",
-              "processed_folder", "failed_folder", "authority_host", "graph_endpoint", "cleanup_days"),
+              "processed_folder", "failed_folder", "noreport_folder", "authority_host", "graph_endpoint", "cleanup_days"),
     "imap": ("host", "port", "security", "auth", "username", "password", "tenant_id", "client_id", "client_secret",
-             "folder", "processed_folder", "failed_folder"),
+             "folder", "processed_folder", "failed_folder", "noreport_folder"),
 }
 
 

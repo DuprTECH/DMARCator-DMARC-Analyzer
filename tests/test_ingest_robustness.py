@@ -94,7 +94,7 @@ def test_bad_message_does_not_block_the_mailbox(monkeypatch):
         sid = src.id
     message = service.run_source(sid)
     assert "1 nových reportov" in message and "1 chýb" in message
-    assert FakeMailbox.done_calls == [("m1", False), ("m2", True)]
+    assert FakeMailbox.done_calls == [("m1", "failed"), ("m2", "ok")]
     with session_scope() as db:
         logs = [m for m in db.scalars(select(IngestLog.message).where(IngestLog.source == "fake"))]
         assert any("'poison'" in m and "Lost connection" in m for m in logs)
@@ -203,9 +203,9 @@ def test_arf_feedback_part_variants():
     d = res.reports[0].data
     assert (d["source_ip"], d["reported_domain"], d["subject"]) == ("192.168.192.254", "gopass.travel", "Planned maintenance")
 
-    # nothing identifies the report -> still an error
+    # nothing identifies the report -> a message without a report (note, not an error)
     res = extract_from_email(_arf("FW: hello", "", original=None))
-    assert not res.reports and res.errors
+    assert not res.reports and not res.errors and res.notes
 
 
 def test_values_are_fitted_to_columns():
@@ -219,7 +219,7 @@ def test_values_are_fitted_to_columns():
         assert max(len(r.header_from) for r in rep.records) <= 255
 
 
-def test_invalid_messages_and_failed_reports_use_failed_folder(monkeypatch):
+def test_messages_without_report_and_failed_reports_are_routed_apart(monkeypatch):
     init_db()
 
     class FakeMailbox:
@@ -246,7 +246,10 @@ def test_invalid_messages_and_failed_reports_use_failed_folder(monkeypatch):
         db.flush()
         sid = src.id
     assert "1 chýb" in service.run_source(sid)
-    assert FakeMailbox.done_calls == [("empty", False), ("bad", False)]
+    assert FakeMailbox.done_calls == [("empty", "noreport"), ("bad", "failed")]
+    with session_scope() as db:
+        levels = dict(db.execute(select(IngestLog.message, IngestLog.level).where(IngestLog.source == "routing-test")).all())
+    assert levels["'notification': správa neobsahuje DMARC/TLS report"] == "info"
 
 
 def test_cleanup_runs_without_new_messages_and_logs_failure(monkeypatch):

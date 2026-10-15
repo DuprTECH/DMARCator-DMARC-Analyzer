@@ -214,7 +214,7 @@ def run_source(source_id: int, limit: int = 500) -> str:
                 if len(raw) > get_settings().max_attachment_mb * 1024 * 1024:
                     with session_scope() as db:
                         add_log(db, name, f"Správa '{subject}' prekročila limit veľkosti", "error")
-                    mbox.done(mid, False)
+                    mbox.done(mid, "failed")
                     continue
                 res = None
                 try:
@@ -223,8 +223,10 @@ def run_source(source_id: int, limit: int = 500) -> str:
                         st = store_result(db, res, name)
                         for e in st["errors"]:
                             add_log(db, name, f"'{subject[:120]}': {e}", "error")
-                        if not res.reports and not res.errors:
-                            add_log(db, name, f"'{subject[:120]}': správa neobsahuje DMARC/TLS report", "warn")
+                        no_report = not res.reports and not res.errors
+                        if no_report:
+                            reason = f" – {res.notes[0]}" if res.notes else ""
+                            add_log(db, name, f"'{subject[:120]}': správa neobsahuje DMARC/TLS report{reason}", "info")
                     ok = not st["errors"]
                     totals["new"] += st["new"]
                     totals["duplicate"] += st["duplicate"]
@@ -234,7 +236,7 @@ def run_source(source_id: int, limit: int = 500) -> str:
                     with session_scope() as db:
                         add_log(db, name, f"'{subject[:120]}': {_short_error(exc)}", "error")
                 totals["errors"] += 0 if ok else 1
-                mbox.done(mid, ok and bool(res and res.reports))
+                mbox.done(mid, "failed" if not ok else ("ok" if res.reports else "noreport"))
             if isinstance(mbox, GraphMailbox) and mbox.cfg.get("cleanup_enabled"):
                 deleted = mbox.cleanup()
                 with session_scope() as db:

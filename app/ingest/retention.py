@@ -1,4 +1,14 @@
-"""Validation shared by the mailbox form and destructive cleanup."""
+"""Folder rules shared by the mailbox form, both mailbox types and destructive cleanup."""
+
+
+def target_folder(cfg: dict, outcome: str) -> str | None:
+    """Folder a message is moved to: "ok" → processed, "noreport" → without-report folder (falls back
+    to the failed folder), "failed" → failed folder. None = leave the message where it is."""
+    if outcome == "ok":
+        return cfg.get("processed_folder") or None
+    if outcome == "noreport":
+        return cfg.get("noreport_folder") or cfg.get("failed_folder") or None
+    return cfg.get("failed_folder") or None
 
 
 def retention_days(cfg: dict) -> int:
@@ -11,6 +21,7 @@ def retention_days(cfg: dict) -> int:
     protected = {
         (cfg.get("folder") or "Inbox").strip("/").casefold(),
         (cfg.get("failed_folder") or "").strip("/").casefold(),
+        (cfg.get("noreport_folder") or "").strip("/").casefold(),
         "inbox", "archive", "deleteditems", "sentitems", "junkemail",
     }
     if not processed or processed in protected:

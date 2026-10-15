@@ -7,6 +7,8 @@ from collections.abc import Iterator
 
 import msal
 
+from .retention import target_folder
+
 
 class ImapError(Exception):
     pass
@@ -20,7 +22,7 @@ class ImapMailbox:
     """
     Config keys: host, port (993), security (ssl|starttls|none), username,
     auth (password|oauth2_m365), password  –or–  tenant_id, client_id, client_secret,
-    folder (INBOX), processed_folder, failed_folder, only_unread, mark_read, tls_verify.
+    folder (INBOX), processed_folder, failed_folder, noreport_folder, only_unread, mark_read, tls_verify.
     """
 
     def __init__(self, cfg: dict):
@@ -87,8 +89,9 @@ class ImapMailbox:
         except imaplib.IMAP4.error as exc:
             raise ImapError(str(exc)) from exc
 
-    def done(self, uid: str, ok: bool):
-        target = self.cfg.get("processed_folder") if ok else self.cfg.get("failed_folder")
+    def done(self, uid: str, outcome: str):
+        """outcome: "ok" (report stored), "noreport" (no report in the message) or "failed"."""
+        target = target_folder(self.cfg, outcome)
         if self.cfg.get("mark_read", True):
             self.conn.uid("STORE", uid, "+FLAGS", "(\\Seen)")
         if target:

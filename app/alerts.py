@@ -24,6 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .analysis import stats
+from . import email_render as er
 from .analysis.stats import TOTAL, Filter, _sum_if
 from .db import session_scope
 from .i18n import set_language, translate
@@ -95,7 +96,7 @@ def send(cfg: dict, subject: str, html: str) -> None:
             box_cfg = decrypt_json(src.config_encrypted)
         box = GraphMailbox(box_cfg)
         try:
-            box._req("POST", "/sendMail", json={"saveToSentItems": False, "message": {
+            box._req("POST", "/sendMail", json={"saveToSentItems": True, "message": {
                 "subject": subject, "body": {"contentType": "HTML", "content": html},
                 "toRecipients": [{"emailAddress": {"address": a}} for a in to]}})
         finally:
@@ -127,13 +128,18 @@ def _language() -> None:
     set_language(s.display_language if s.display_language in ("sk", "en") else s.default_language)
 
 
-def _page(title: str, body: str) -> str:
+def _page(title: str, subtitle: str, body: str) -> str:
     from .settings_store import effective_settings
 
     s = effective_settings()
-    link = f'<p><a href="{escape(s.base_url)}">{escape(s.app_name)}</a></p>'
-    return (f'<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1b1b1b">'
-            f'<h2 style="margin:0 0 12px">{escape(title)}</h2>{body}{link}</div>')
+    footer = translate("Automatický e-mail – nastavenia v Administrácia → Upozornenia e-mailom")
+    return er.page(title, subtitle, body, s.app_name, s.base_url, escape(footer))
+
+
+# event kind → colour of its marker / badge
+KIND_STATUS = {"fail_spike": "critical", "dns_removed": "critical", "mailbox": "serious", "compliance_drop": "warning"}
+KIND_LABEL = {"fail_spike": "Nárast zlyhaní", "dns_removed": "Zmiznutý DNS záznam", "mailbox": "Schránka",
+              "compliance_drop": "Pokles súladu"}
 
 
 # ------------------------------------------------------------------ detection
@@ -162,10 +168,6 @@ def dns_regressions(db: Session, domain: str, old: dict | None, new: dict) -> No
         if had and not has:
             record(db, f"dns_removed:{key}:{domain}:{today}", "dns_removed", domain,
                    f"{domain}: záznam {label} zmizol z DNS")
-
-
-def _n(value: int) -> str:
-    return f"{value:,}".replace(",", " ")
 
 
 def _median_mad(values: list[float]) -> tuple[float, float]:
@@ -243,8 +245,13 @@ def check_and_notify() -> int:
         if not pending:
             return 0
         _language()
-        items = "".join(f"<li>{escape(translate(a.message))}</li>" for a in pending)
-        html = _page(translate("Vážne zmeny v DMARC"), f"<ul>{items}</ul>")
+        counts = {k: sum(a.kind == k for a in pending) for k in KIND_LABEL}
+        tiles = [er.kpi(translate(label), str(counts[k]), status=KIND_STATUS[k] if counts[k] else None)
+                 for k, label in KIND_LABEL.items()]
+        body = er.kpi_row(tiles) + er.section(translate("Čo sa stalo"), er.event_list(
+            [(KIND_STATUS.get(a.kind, "info"), translate(a.message)) for a in pending]))
+        html = _page(translate("Vážne zmeny v DMARC"),
+                     translate("{n} nových udalostí", n=len(pending)), body)
         try:
             send(cfg, f"[DMARCator] {translate('Upozornenie')}: {translate(pending[0].message)}"
                  + (f" (+{len(pending) - 1})" if len(pending) > 1 else ""), html)
@@ -263,43 +270,66 @@ def check_and_notify() -> int:
 
 def monthly_html(db: Session, month: date) -> tuple[str, str]:
     """Subject and HTML of the summary for the calendar month containing `month`."""
+    tr = translate
     first = month.replace(day=1)
     last = (first + timedelta(days=32)).replace(day=1) - timedelta(days=1)
     f = Filter(first, last)
     s = stats.summary(db, f)
-    tr = translate
-    tiles = "".join(
-        f'<td style="padding:8px 14px;border:1px solid #ddd"><div style="color:#666;font-size:12px">{tr(label)}</div>'
-        f'<div style="font-size:20px;font-weight:600">{value}</div></td>'
-        for label, value in (("Správ", _n(s["total"])),
-                             ("Súlad DMARC", f"{s['pass_pct'] or 0:.1f} %"),
-                             ("Hrozby", _n(s["threat"])),
-                             ("Domén", s["domains"]))
-    )
-    rows = "".join(
-        f"<tr><td>{escape(d['name'])}</td><td style='text-align:right'>{_n(d['total'])}</td>"
-        f"<td style='text-align:right'>{d['pass_pct'] if d['pass_pct'] is not None else '–'} %</td>"
-        f"<td style='text-align:right'>{_n(d['threat'])}</td><td>{escape(d['policy'] or tr('bez DMARC'))}</td>"
-        f"<td>{escape(d['grade'] or '?')}</td></tr>"
-        for d in stats.domains_overview(db, f) if not d["ignored"] and d["total"]
-    )
+
+    def delta(value, unit):
+        if value is None:
+            return tr("bez porovnania")
+        arrow, status = ("▲", "good") if value > 0 else ("▼", "critical") if value < 0 else ("●", "neutral")
+        if unit == "%":  # message volume – a change is neither good nor bad
+            status = "neutral"
+        return f'<span style="color:{er.STATUS[status][1]}">{arrow} {abs(value):.1f} {unit}</span> ' + tr("oproti minulému mesiacu")
+
+    tiles = [
+        er.kpi(tr("Súlad DMARC"), f"{s['pass_pct'] or 0:.1f}&nbsp;%", delta(s["pass_delta"], "pp"), er.rate_status(s["pass_pct"])),
+        er.kpi(tr("Správ"), er.n(s["total"]), delta(s["total_delta"], "%")),
+        er.kpi(tr("Zlyhalo DMARC"), er.n(s["fail"]), tr("z toho preposlané {n}", n=er.n(s["forwarded"]))),
+        er.kpi(tr("Hrozby"), er.n(s["threat"]), tr("neznáme zdroje"), "critical" if s["threat"] else "good"),
+    ]
+
+    policy_status = {"reject": "good", "quarantine": "warning", "none": "critical"}
+    grade_status = {"A": "good", "B": "good", "C": "warning", "D": "serious", "F": "critical"}
+    domains = [d for d in stats.domains_overview(db, f) if not d["ignored"] and d["total"]]
+    rows = [[
+        f"<strong>{escape(d['name'])}</strong>",
+        er.n(d["total"]),
+        er.bar(d["pass_pct"]),
+        f'<span style="color:{er.STATUS["critical"][1]};font-weight:600">{er.n(d["threat"])}</span>' if d["threat"] else "0",
+        er.badge(f"p={d['policy']}" if d["policy"] else tr("bez DMARC"), policy_status.get(d["policy"], "critical")),
+        er.badge(d["grade"] or "?", grade_status.get(d["grade"], "neutral")),
+    ] for d in domains[:40]]
+    more = len(domains) - 40
+    domain_table = er.table([tr("Doména"), tr("Správ"), tr("Súlad DMARC"), tr("Hrozby"), tr("Politika"), "DNS"], rows,
+                            ["left", "right", "left", "right", "left", "center"])
+    if more > 0:
+        domain_table += f'<div style="padding:8px 12px;font-size:12px;color:{er.MUTED}">{tr("a ďalších {n} domén", n=more)}</div>'
+
     posture = stats.dns_posture(db)
-    missing = "".join(
-        f"<li>{c['name']}: {tr('chýba pri')} {c['missing']} · {tr('chyba pri')} {c['error']}</li>"
-        for c in posture["checks"] if c["key"] in ("dmarc", "spf", "dkim") and (c["missing"] or c["error"])
-    )
-    events = list(db.scalars(select(Alert).where(Alert.kind != "monthly", Alert.created_at >= datetime.combine(first, datetime.min.time()),
-                                                  Alert.created_at < datetime.combine(last + timedelta(days=1), datetime.min.time()))
-                             .order_by(Alert.created_at)))
-    ev = "".join(f"<li>{escape(tr(a.message))}</li>" for a in events) or f"<li>{tr('Žiadne')}</li>"
-    head = "".join(f"<th style='text-align:left;padding:4px 8px'>{tr(h)}</th>"
-                   for h in ("Doména", "Správ", "Súlad DMARC", "Hrozby", "Politika", "DNS"))
-    body = (f"<p>{first.isoformat()} – {last.isoformat()}</p><table style='border-collapse:collapse'><tr>{tiles}</tr></table>"
-            f"<h3>{tr('Domény')}</h3><table style='border-collapse:collapse' cellpadding='4'><tr>{head}</tr>{rows}</table>"
-            f"<h3>{tr('DNS záznamy')}</h3><ul>{missing or '<li>OK</li>'}</ul>"
-            f"<h3>{tr('Upozornenia za mesiac')}</h3><ul>{ev}</ul>")
+    dns_rows = [[
+        f"<strong>{c['name']}</strong>",
+        er.badge(f"OK {c['ok']}", "good"),
+        er.badge(f"{tr('Upozornenie')} {c['warn']}", "warning") if c["warn"] else "",
+        er.badge(f"{tr('Chyba')} {c['error']}", "critical") if c["error"] else "",
+        er.badge(f"{tr('Chýba')} {c['missing']}", "critical" if c["key"] in ("dmarc", "spf", "dkim") else "neutral")
+        if c["missing"] else "",
+    ] for c in posture["checks"]]
+
+    events = list(db.scalars(select(Alert).where(
+        Alert.kind != "monthly", Alert.created_at >= datetime.combine(first, datetime.min.time()),
+        Alert.created_at < datetime.combine(last + timedelta(days=1), datetime.min.time())).order_by(Alert.created_at)))
+    event_html = (er.event_list([(KIND_STATUS.get(a.kind, "info"), tr(a.message)) for a in events]) if events else
+                  er.event_list([("good", tr("Žiadne vážne zmeny"))]))
+
+    body = (er.kpi_row(tiles)
+            + er.section(tr("Domény"), domain_table)
+            + er.section(tr("DNS záznamy všetkých domén"), er.table(["", "", "", "", ""], dns_rows))
+            + er.section(tr("Upozornenia za mesiac"), event_html))
     title = f"{tr('Mesačný DMARC report')} {first.strftime('%Y-%m')}"
-    return f"[DMARCator] {title}", _page(title, body)
+    return f"[DMARCator] {title}", _page(title, f"{first.isoformat()} – {last.isoformat()}", body)
 
 
 def send_monthly(month: date | None = None, force: bool = False) -> bool:

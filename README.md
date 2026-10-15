@@ -145,6 +145,17 @@ Configure Exchange Online (Graph) or IMAP sources and inspect polling results an
 
 </details>
 
+<details>
+<summary><strong>E-mail alerts – monthly report</strong></summary>
+
+Colour HTML e-mail on the 1st of each month: KPIs against the previous month, compliance per domain,
+policies and DNS grades, DNS record status of all domains and the alerts of the month. Serious changes
+arrive immediately in the same style.
+
+![Monthly DMARC report e-mail](docs/screenshots/email-monthly.png)
+
+</details>
+
 ## Installation
 
 On a Linux server (Debian, Ubuntu, RHEL / Rocky / Alma, Fedora, openSUSE):

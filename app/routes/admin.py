@@ -97,7 +97,8 @@ def alerts_test(request: Request):
     cfg = alerts.load()
     try:
         alerts.send(cfg, "[DMARCator] Test", "<p>DMARCator – test e-mail / testovací e-mail.</p>")
-        flash(request, "Testovací e-mail odoslaný: {to}".format(to=", ".join(alerts.recipients(cfg))))
+        flash(request, "Testovací e-mail odovzdaný na odoslanie: {to}. Ak nepríde, pozrite Odoslanú poštu a "
+                       "Message trace v Exchange admin center.".format(to=", ".join(alerts.recipients(cfg))))
     except Exception as exc:  # noqa: BLE001 – show the reason to the administrator
         flash(request, f"Odoslanie zlyhalo: {exc}", "error")
     return RedirectResponse("/admin/alerts", 303)

@@ -29,7 +29,9 @@ The running version is shown in the page footer, by `GET /healthz` and by `pytho
   DMARC failures or compliance far outside the domain's usual level (median of the previous 28 days),
   a removed DMARC / SPF / DKIM record, a failing mailbox – and a monthly summary on the 1st. Sent
   via Microsoft 365 (Graph, `Mail.Send`) or SMTP; every event is e-mailed once. New commands
-  `manage alerts` and `manage monthly-report`.
+  `manage alerts` and `manage monthly-report`. The e-mails are colour HTML (KPI tiles with the change
+  against the previous month, compliance bars, policy and DNS grade badges) built with tables and
+  inline styles, so they look the same in Outlook, Gmail and on phones. Graph keeps a copy in Sent Items.
 - Domain table: **Last mail** column (active / inactive / no mail with the last day of mail, over the
   whole history) and a *Sending mail* filter – parked domains that never send are easy to find.
 - SPF with 8–10 DNS lookups is OK (an informational note only); only more than 10 is an error.

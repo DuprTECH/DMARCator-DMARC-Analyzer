@@ -5,6 +5,17 @@ Keys containing {placeholders} also act as patterns for already rendered Slovak 
 """
 
 EN: dict[str, str] = {
+    "Čas a jazyk": "Time and language",
+    "Čas": "Time",
+    "Časová zóna": "Time zone",
+    "Predvolený jazyk": "Default language",
+    "Podľa prehliadača": "Use browser language",
+    "Použiť spoločné nastavenie jazyka": "Use the shared language setting",
+    "Nastavenia zobrazenia uložené.": "Display settings saved.",
+    "Neplatný jazyk.": "Invalid language.",
+    "Neplatná časová zóna. Použite názov ako Europe/Bratislava.": "Invalid time zone. Use a name such as Europe/Bratislava.",
+    "Použite IANA názov, napr. Europe/Bratislava. Letný čas sa zohľadní automaticky. Uložené údaje zostávajú v UTC.": "Use an IANA name, e.g. Europe/Bratislava. Daylight saving time is applied automatically. Stored data remains in UTC.",
+    "Vlastný výber jazyka v hornej lište má prednosť. Voľba AUTO obnoví spoločné nastavenie.": "Your language selection in the top bar takes priority. AUTO restores the shared setting.",
     "Automaticky mazať staré spracované správy": "Automatically delete old processed messages",
     "Retencia správ (dni)": "Message retention (days)",
     "Retencia musí byť celé číslo od 1 do 3650 dní.": "Retention must be a whole number from 1 to 3650 days.",

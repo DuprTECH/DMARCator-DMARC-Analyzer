@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Čas a jazyk') }}{% endblock %}
+{% block heading %}{{ _('Čas a jazyk') }}{% endblock %}
+{% block content %}
+<form method="post" action="/admin/display" class="card" style="max-width:720px">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <div class="field">
+    <label for="display_timezone">{{ _('Časová zóna') }}</label>
+    <input id="display_timezone" name="display_timezone" list="timezones" value="{{ settings.display_timezone }}" required>
+    <datalist id="timezones">
+      {% for zone in ['Europe/Bratislava', 'Europe/Prague', 'Europe/London', 'UTC', 'America/New_York'] %}
+      <option value="{{ zone }}">
+      {% endfor %}
+    </datalist>
+    <div class="hint">{{ _('Použite IANA názov, napr. Europe/Bratislava. Letný čas sa zohľadní automaticky. Uložené údaje zostávajú v UTC.') }}</div>
+  </div>
+  <div class="field">
+    <label for="display_language">{{ _('Predvolený jazyk') }}</label>
+    <select id="display_language" name="display_language">
+      <option value="auto" {% if settings.display_language == 'auto' %}selected{% endif %}>{{ _('Podľa prehliadača') }}</option>
+      {% for code, label in LANGUAGES.items() %}
+      <option value="{{ code }}" {% if settings.display_language == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <div class="hint">{{ _('Vlastný výber jazyka v hornej lište má prednosť. Voľba AUTO obnoví spoločné nastavenie.') }}</div>
+  </div>
+  <button class="btn primary" type="submit">{{ _('Uložiť') }}</button>
+</form>
+{% endblock %}

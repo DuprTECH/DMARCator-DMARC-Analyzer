@@ -2,6 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, Request
@@ -19,7 +20,8 @@ from .ingest.service import refresh_dns, run_all_sources
 from .models import User
 from .routes import admin, auth, pages
 from .security import LoginRequired, hash_password
-from .web import render
+from .settings_store import effective_settings
+from .web import display_zone, render
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("dmarcula")
@@ -78,9 +80,17 @@ app.include_router(pages.router)
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
-    set_language(request.cookies.get("lang")
-                 or browser_language(request.headers.get("accept-language"), settings.default_language))
-    response = await call_next(request)
+    current = effective_settings()
+    cookie = request.cookies.get("lang")
+    language = cookie if cookie in LANGUAGES else current.display_language
+    if language not in LANGUAGES:
+        language = browser_language(request.headers.get("accept-language"), current.default_language)
+    set_language(language)
+    token = display_zone.set(ZoneInfo(current.display_timezone))
+    try:
+        response = await call_next(request)
+    finally:
+        display_zone.reset(token)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "same-origin")
@@ -114,6 +124,8 @@ def switch_language(code: str, request: Request):
     response = RedirectResponse(path if path.startswith("/") and not path.startswith("//") else "/", 303)
     if code in LANGUAGES:
         response.set_cookie("lang", code, max_age=365 * 86400, samesite="lax", secure=settings.cookie_secure, httponly=True)
+    elif code == "auto":
+        response.delete_cookie("lang", samesite="lax", secure=settings.cookie_secure, httponly=True)
     return response
 
 

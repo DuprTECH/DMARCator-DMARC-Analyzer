@@ -34,6 +34,7 @@
       <a href="/admin/upload" class="{% if path.startswith('/admin/upload') %}active{% endif %}">{{ icon('upload') }}{{ _('Import reportov') }}</a>
       <a href="/admin/users" class="{% if path.startswith('/admin/users') %}active{% endif %}">{{ icon('users') }}{{ _('Používatelia') }}</a>
       <a href="/admin/auth" class="{% if path.startswith('/admin/auth') %}active{% endif %}">{{ icon('lock') }}{{ _('Prihlásenie (LDAP / SSO)') }}</a>
+      <a href="/admin/display" class="{% if path.startswith('/admin/display') %}active{% endif %}">{{ icon('globe') }}{{ _('Čas a jazyk') }}</a>
       {% endif %}
     </nav>
     <div class="spacer"></div>
@@ -60,6 +61,7 @@
     <footer class="app-footer">
       {{ settings.app_name }} – DMARC Analyzer · {{ _('verzia') }} {{ VERSION }} · © {{ year }} <a href="{{ AUTHOR_URL }}" target="_blank" rel="noopener">{{ AUTHOR }}</a>
       · <a href="{{ LICENSE_URL }}" target="_blank" rel="noopener">{{ _('Licencia: interné použitie') }}</a>
+      · {{ display_timezone }}
     </footer>
   </div>
 </div>

@@ -8,6 +8,8 @@ class Settings(BaseSettings):
 
     app_name: str = "DMARCula"
     default_language: str = "en"  # used when the browser sends no Accept-Language; users can switch in the UI
+    display_timezone: str = "UTC"
+    display_language: str = "auto"
     base_url: str = "http://localhost:8000"
     secret_key: str = "change-me-please-change-me-please"
     database_url: str = "sqlite:///./data/dmarcula.db"

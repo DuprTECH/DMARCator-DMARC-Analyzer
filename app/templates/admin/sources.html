@@ -17,7 +17,7 @@
         <td><a href="/admin/sources/{{ s.id }}"><strong>{{ s.name }}</strong></a>{% if not s.enabled %} <span class="badge plain">{{ _('vypnuté') }}</span>{% endif %}</td>
         <td>{{ 'Microsoft Graph (EXO)' if s.kind == 'graph' else 'IMAP' }}</td>
         <td>{% if s.last_status %}{{ status_badge(s.last_status) }}{% else %}<span class="sub">{{ _('ešte nebežalo') }}</span>{% endif %}</td>
-        <td class="sub">{{ s.last_run|dt }} UTC</td>
+        <td class="sub">{{ s.last_run|dt }} {{ display_timezone }}</td>
         <td class="wrap sub" style="max-width:420px">{{ (s.last_message or '')|t }}</td>
         <td><div class="actions" style="justify-content:flex-end">
           <form method="post" action="/admin/sources/{{ s.id }}/test"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="btn sm">Test</button></form>
@@ -33,7 +33,7 @@
 <div class="card flush mt">
   <div class="card-head"><h2>{{ _('Log spracovania') }}</h2><a class="hint" href="/admin/sources">{{ _('obnoviť') }}</a></div>
   <div class="table-wrap"><table>
-    <thead><tr><th>{{ _('Čas (UTC)') }}</th><th>{{ _('Zdroj') }}</th><th>{{ _('Úroveň') }}</th><th>{{ _('Správa') }}</th></tr></thead>
+    <thead><tr><th>{{ _('Čas') }} ({{ display_timezone }})</th><th>{{ _('Zdroj') }}</th><th>{{ _('Úroveň') }}</th><th>{{ _('Správa') }}</th></tr></thead>
     <tbody>
     {% for l in logs %}<tr><td class="sub" style="white-space:nowrap">{{ l.created_at|dt }}</td><td>{{ l.source }}</td>
       <td><span class="badge {{ 'error' if l.level == 'error' else ('warn' if l.level == 'warn' else 'info') }}">{{ l.level }}</span></td><td class="wrap">{{ l.message|t }}</td></tr>

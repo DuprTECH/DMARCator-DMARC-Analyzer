@@ -94,6 +94,7 @@
 
 {% macro lang_switch(current) -%}
 <div class="seg lang-switch" role="group" aria-label="{{ _('Jazyk') }}">
+  <a href="/lang/auto" title="{{ _('Použiť spoločné nastavenie jazyka') }}">AUTO</a>
   {% for code in LANGUAGES %}<a href="/lang/{{ code }}" class="{% if current == code %}on{% endif %}" hreflang="{{ code }}" title="{{ LANGUAGES[code] }}">{{ code|upper }}</a>{% endfor %}
 </div>
 {%- endmacro %}

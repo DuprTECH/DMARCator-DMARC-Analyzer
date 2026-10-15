@@ -82,6 +82,20 @@ The LDAP and SSO settings below can also be set in the web UI (*Administrácia �
 
 ## Processing
 
+### Web display settings
+
+Administrators can open **Administration → Time and language** to select a shared IANA time zone
+(for Slovakia, `Europe/Bratislava`) and default language (`sk`, `en`, or browser detection).
+The settings are stored in the database and apply on the next request, without restarting.
+The top-bar SK/EN switch overrides the shared language for that browser; **AUTO** clears it.
+
+`DISPLAY_TIMEZONE` defaults to `UTC`, and `DISPLAY_LANGUAGE` to `auto` when no web override exists.
+In auto mode, browser language detection uses `DEFAULT_LANGUAGE` only when the browser supplies
+no language. The time-zone conversion handles summer/winter time and applies to web timestamps,
+including ingest logs, last runs and report details. Date-only report periods and chart day
+boundaries are not shifted. Database timestamps remain UTC; CLI/server log formatting is unchanged.
+Resetting sign-in settings does not reset display preferences.
+
 | Variable | Default | Description |
 |---|---|---|
 | `SCHEDULER_ENABLED` | `true` | Built-in scheduler for mailbox polling and DNS refresh. Set `false` to drive both from cron with `python -m app.manage poll` / `dns` instead (see [Operations](operations.md#cron-jobs)). Never run both. |

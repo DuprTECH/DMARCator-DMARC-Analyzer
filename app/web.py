@@ -1,8 +1,10 @@
 """Shared template environment and helpers."""
 
 import json
-from datetime import date, datetime
+from contextvars import ContextVar
+from datetime import date, datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
@@ -19,6 +21,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 AUTHOR = "DuprTECH"
 AUTHOR_URL = "https://github.com/DuprTECH/DMARCula---DMARC-Anylzer"
 LICENSE_URL = AUTHOR_URL + "/blob/main/LICENSE"
+display_zone: ContextVar[ZoneInfo] = ContextVar("display_zone", default=ZoneInfo("UTC"))
 
 
 def _num(value) -> str:
@@ -40,9 +43,12 @@ def _dt(value) -> str:
     if not value:
         return "–"
     if isinstance(value, str):
-        value = datetime.fromisoformat(value)
+        value = date.fromisoformat(value) if len(value) == 10 else datetime.fromisoformat(value)
     en = get_language() == "en"
     if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        value = value.astimezone(display_zone.get())
         return value.strftime("%Y-%m-%d %H:%M" if en else "%d.%m.%Y %H:%M")
     if isinstance(value, date):
         return value.strftime("%Y-%m-%d" if en else "%d.%m.%Y")
@@ -87,6 +93,7 @@ def render(request: Request, name: str, ctx: dict | None = None, status_code: in
         "lang": get_language(),
         "js_i18n": js_strings(),
         "year": datetime.now().year,
+        "display_timezone": display_zone.get().key,
     }
     base.update(ctx or {})
     return templates.TemplateResponse(request, name, base, status_code=status_code)

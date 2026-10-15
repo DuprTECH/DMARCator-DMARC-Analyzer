@@ -3,6 +3,14 @@
 All notable changes to DMARCula. Versions follow [semantic versioning](https://semver.org/).
 The running version is shown in the page footer, by `GET /healthz` and by `python -m app.manage version`.
 
+## 1.1.7 – 2026-10-15
+
+- Admin **Time and language** page: shared IANA time zone with automatic DST conversion for
+  displayed timestamps, and default UI language. Changes take effect without a restart.
+- Personal language switches still take priority; **AUTO** clears the override.
+- Database timestamps, report-day aggregations, CLI output and server logs remain unchanged (UTC
+  for stored timestamps). The selected display zone is shown in the footer and mailbox log header.
+
 ## 1.1.6 – 2026-10-15
 
 - Optional age-based retention for global Exchange Online / Graph mailboxes: checkbox and retention

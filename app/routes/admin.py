@@ -52,6 +52,23 @@ FIELDS = {
 # ------------------------------------------------------------- mailboxes
 
 
+@router.get("/display")
+def display_settings(request: Request):
+    return render(request, "admin/display.html")
+
+
+@router.post("/display", dependencies=[Depends(verify_csrf)])
+async def display_settings_save(request: Request, me: User = Depends(admin_required)):
+    form = await request.form()
+    try:
+        settings_store.save_display(dict(form), me.username)
+    except ValueError as exc:
+        flash(request, str(exc), "error")
+        return RedirectResponse("/admin/display", 303)
+    flash(request, "Nastavenia zobrazenia uložené.")
+    return RedirectResponse("/admin/display", 303)
+
+
 @router.get("/sources")
 def sources(request: Request, db: Session = Depends(get_db)):
     items = db.scalars(select(MailSource).order_by(MailSource.name)).all()

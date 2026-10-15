@@ -77,7 +77,7 @@ def test_pages_in_english_contain_no_slovak():
         urls = ["/?days=3650", "/domains?days=3650", "/domains/example.sk?days=3650", "/sources?days=3650",
                 "/sources?days=3650&category=threat", "/reports?days=3650", "/reports/1", "/forensic?days=3650",
                 "/forensic/1", "/tls?days=3650", "/tools", "/admin/sources", "/admin/users", "/admin/upload", "/admin/auth",
-                "/admin/sources/new?kind=graph", "/admin/sources/new?kind=imap", "/profile", "/nope"]
+                "/admin/sources/new?kind=graph", "/admin/sources/new?kind=imap", "/admin/display", "/profile", "/nope"]
         for url in urls:
             html = client.get(url).text
             assert '<html lang="en">' in html, url

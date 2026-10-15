@@ -298,6 +298,11 @@ def domains_overview(db: Session, f: Filter) -> list[dict]:
         s = stats.get(dom.name)
         total, passed, threat, fwd, ips = (int(x) for x in s[1:]) if s else (0, 0, 0, 0, 0)
         dmarc = (dom.dns or {}).get("dmarc", {})
+        spf, dkim = (dom.dns or {}).get("spf") or {}, (dom.dns or {}).get("dkim") or {}
+
+        def first_issue(check: dict) -> str | None:
+            return next((i["msg"] for i in check.get("issues", []) if i["level"] in ("error", "warn")), None)
+
         out.append({
             "name": dom.name,
             "total": total,
@@ -312,6 +317,13 @@ def domains_overview(db: Session, f: Filter) -> list[dict]:
             "last_seen": dom.last_seen.isoformat() if dom.last_seen else None,
             "spark": [sparks[dom.name].get(d, 0) for d in days],
             "ignored": bool(dom.ignored),
+            "spf": _check_state(dom.dns, "spf"),
+            "spf_lookups": spf.get("lookups"),
+            "spf_issue": first_issue(spf),
+            "dkim": _check_state(dom.dns, "dkim"),
+            "dkim_keys": [f"{s['selector']} ({s['bits']} b)" if s.get("bits") else s["selector"]
+                          for s in dkim.get("selectors", []) if not s.get("revoked")],
+            "dkim_issue": first_issue(dkim),
         })
     out.sort(key=lambda d: (d["ignored"], -d["total"]))
     return out

@@ -11,6 +11,10 @@
 {{ period(f, days, '/domains') }}
 {% endblock %}
 {% block content %}
+{% macro rec_state(state, tip) -%}
+{# a missing SPF / DKIM record is a problem, so it is shown like an error #}
+<span class="badge {{ {'ok': 'ok', 'warn': 'warn', 'error': 'error', 'missing': 'error'}.get(state, 'info plain') }}" title="{{ tip }}">{{ {'ok': 'OK', 'warn': _('Upozornenie'), 'error': _('Chyba'), 'missing': _('Chýba')}.get(state, '?') }}</span>
+{%- endmacro %}
 {% set by_policy = {'reject': 0, 'quarantine': 0, 'none': 0, '': 0} %}
 {% set by_level = {'error': 0, 'warn': 0, 'ok': 0} %}
 {% for d in domains if not d.ignored %}
@@ -90,7 +94,7 @@
     <span class="hint" id="dom-count" data-of="{{ _('z') }}"></span>
   </div>
   <div class="table-wrap"><table id="dom-table">
-    <thead><tr><th>{{ _('Doména') }}</th><th>{{ _('Stav') }}</th><th>{{ _('Politika') }}</th><th>DNS</th><th class="num">{{ _('Správ') }}</th><th>{{ _('DMARC súlad') }}</th><th class="num">{{ _('Hrozby') }}</th><th>{{ _('Trend') }}</th><th>{{ _('Posledný report') }}</th></tr></thead>
+    <thead><tr><th>{{ _('Doména') }}</th><th>{{ _('Stav') }}</th><th>{{ _('Politika') }}</th><th>SPF</th><th>DKIM</th><th>DNS</th><th class="num">{{ _('Správ') }}</th><th>{{ _('DMARC súlad') }}</th><th class="num">{{ _('Hrozby') }}</th><th>{{ _('Trend') }}</th><th>{{ _('Posledný report') }}</th></tr></thead>
     <tbody>
     {% for d in domains %}
       <tr data-name="{{ d.name }}" data-policy="{{ d.policy or '-' }}" data-level="{{ d.level or 'ok' }}" data-total="{{ d.total }}"{% if d.ignored %} style="opacity:.55"{% endif %}>
@@ -101,6 +105,8 @@
           {% if d.issues %}<div class="sub ellipsis" style="max-width:240px">{{ d.issues[0]|t }}</div>{% endif %}
         </td>
         <td>{{ policy_badge(d.policy) }}</td>
+        <td>{{ rec_state(d.spf, ((d.spf_lookups|string ~ ' ' ~ _('DNS lookupov')) if d.spf_lookups is not none else '') ~ ((' · ' ~ (d.spf_issue|t)) if d.spf_issue else '')) }}</td>
+        <td>{{ rec_state(d.dkim, (d.dkim_keys|join(', ')) ~ ((' · ' ~ (d.dkim_issue|t)) if d.dkim_issue else '')) }}</td>
         <td><span class="grade {{ d.grade or '?' }}" title="{{ _('Skóre') }} {{ d.score if d.score is not none else '–' }}/100">{{ d.grade or '?' }}</span></td>
         <td class="num">{{ d.total|num }}</td>
         <td>{{ rate_bar(d.pass_pct) }}</td>
@@ -109,7 +115,7 @@
         <td class="sub">{{ d.last_seen|dt }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="9">{{ empty(_('Domény sa pridávajú automaticky z prijatých reportov.')) }}</td></tr>
+      <tr><td colspan="11">{{ empty(_('Domény sa pridávajú automaticky z prijatých reportov.')) }}</td></tr>
     {% endfor %}
     </tbody>
   </table></div>

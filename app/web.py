@@ -1,5 +1,6 @@
 """Shared template environment and helpers."""
 
+import hashlib
 import json
 from contextvars import ContextVar
 from datetime import date, datetime, timezone
@@ -78,6 +79,9 @@ templates.env.globals["LANGUAGES"] = LANGUAGES
 templates.env.globals["AUTHOR"] = AUTHOR
 templates.env.globals["AUTHOR_URL"] = AUTHOR_URL
 templates.env.globals["VERSION"] = __version__
+# changes with every edit of the static files, so browsers never keep an outdated app.js / app.css
+templates.env.globals["ASSET_V"] = hashlib.sha256(b"".join(
+    p.read_bytes() for p in sorted((Path(__file__).parent / "static").rglob("*")) if p.is_file())).hexdigest()[:10]
 templates.env.globals["LICENSE_URL"] = LICENSE_URL
 
 

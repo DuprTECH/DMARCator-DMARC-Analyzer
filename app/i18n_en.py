@@ -78,6 +78,8 @@ EN: dict[str, str] = {
     "Stav DNS záznamov": "DNS record status",
     "Nekontrolované": "Not monitored",
     "nekontroluje sa": "not monitored",
+    "Chýba": "Missing",
+    "DNS lookupov": "DNS lookups",
     "nezobrazovať nekontrolované": "hide not monitored",
     "Nekontrolovať túto doménu": "Stop monitoring this domain",
     "Znova kontrolovať túto doménu": "Monitor this domain again",

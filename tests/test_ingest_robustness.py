@@ -170,6 +170,44 @@ def test_forensic_variants():
     assert not res.reports and not res.errors
 
 
+def _arf(subject: str, feedback: str, cte: str | None = None, original: bytes | None = ORIGINAL) -> bytes:
+    """multipart/report ARF message built by hand, so the feedback part keeps its exact bytes."""
+    head = f"Content-Transfer-Encoding: {cte}\n" if cte else ""
+    orig = (f"--B\nContent-Type: text/rfc822-headers\n\n{original.decode()}\n") if original else ""
+    return (f"From: reporter@example.net\nSubject: {subject}\nMIME-Version: 1.0\n"
+            f"Content-Type: multipart/report; report-type=feedback-report; boundary=\"B\"\n\n"
+            f"--B\nContent-Type: text/plain\n\nA message failed DMARC.\n"
+            f"--B\nContent-Type: message/feedback-report\n{head}\n{feedback}\n"
+            f"{orig}--B--\n").encode()
+
+
+def test_arf_feedback_part_variants():
+    import base64
+
+    from app.ingest.parser import extract_from_email
+
+    fields = "Feedback-Type: auth-failure\nSource-IP: 203.0.113.9\nReported-Domain: gopass.travel\nAuth-Failure: dmarc\n"
+
+    # base64 encoded feedback part
+    d = extract_from_email(_arf("x", base64.b64encode(fields.encode()).decode(), "base64")).reports[0].data
+    assert (d["source_ip"], d["reported_domain"], d["auth_failure"]) == ("203.0.113.9", "gopass.travel", "dmarc")
+
+    # feedback part that starts with a blank line
+    d = extract_from_email(_arf("x", "\n" + fields)).reports[0].data
+    assert (d["source_ip"], d["reported_domain"]) == ("203.0.113.9", "gopass.travel")
+
+    # unreadable feedback part: domain and IP from a "(mail-from=…, ip=…)" subject
+    subject = "DMARC Failure Report for gopass.travel (mail-from=system@gopass.travel, ip=192.168.192.254)"
+    res = extract_from_email(_arf(subject, ""))
+    assert not res.errors
+    d = res.reports[0].data
+    assert (d["source_ip"], d["reported_domain"], d["subject"]) == ("192.168.192.254", "gopass.travel", "Planned maintenance")
+
+    # nothing identifies the report -> still an error
+    res = extract_from_email(_arf("FW: hello", "", original=None))
+    assert not res.reports and res.errors
+
+
 def test_values_are_fitted_to_columns():
     init_db()
     long_from = ("x" * 300) + ".example.sk"

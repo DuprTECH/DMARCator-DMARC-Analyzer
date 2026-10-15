@@ -18,6 +18,11 @@ The running version is shown in the page footer, by `GET /healthz` and by `pytho
 - Installer updates no longer stop on `Not possible to fast-forward` after upstream history was
   rewritten: a checkout without local edits is reset to the repository (the old commit stays in
   `git reflog`); local edits stop the installer before anything is changed.
+- **Fix:** forensic reports whose `message/feedback-report` part is base64 / quoted-printable
+  encoded or starts with a blank line were rejected with *The message/feedback-report part is
+  missing*. The fields are now read line by line; when they can't be read, the domain and IP come
+  from a subject like `DMARC Failure Report for <domain> (mail-from=…, ip=<ip>)` or from the
+  original message headers.
 
 ## 1.1.7 – 2026-10-15
 

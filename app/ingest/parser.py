@@ -1,5 +1,7 @@
 """Parsers for DMARC aggregate (RUA), forensic (RUF / ARF) and SMTP TLS (TLS-RPT) reports."""
 
+import base64
+import binascii
 import email
 import email.policy
 import gzip
@@ -7,6 +9,7 @@ import hashlib
 import io
 import ipaddress
 import json
+import quopri
 import re
 import zipfile
 from dataclasses import dataclass, field
@@ -239,28 +242,60 @@ def parse_tls(json_bytes: bytes) -> ParsedReport:
 # ----------------------------------------------------- forensic (ARF)
 
 
+def _fields_from_text(text: str) -> dict:
+    """ARF fields from "Name: value" lines; blank lines and other text between them are skipped,
+    folded values are joined and repeated fields are comma-separated."""
+    out: dict = {}
+    key = None
+    for line in text.splitlines():
+        if key and line[:1] in (" ", "\t") and line.strip():
+            out[key] += " " + line.strip()
+            continue
+        m = re.match(r"^([A-Za-z][\w-]*):\s*(.*)$", line)
+        key = m.group(1).lower() if m else None
+        if m:
+            value = m.group(2).strip()
+            out[key] = f"{out[key]}, {value}" if key in out else value
+    return out
+
+
 def _feedback_fields(part: Message) -> dict:
     payload = part.get_payload()
-    if isinstance(payload, list) and payload:
-        items = []
-        for sub in payload:
-            items.extend(sub.items())
+    if isinstance(payload, list):
+        # message/* parts are parsed as an embedded message: a body that starts with a blank line or
+        # is base64 / quoted-printable encoded ends up outside the parsed "headers"
+        text = "".join(sub.as_string() for sub in payload if isinstance(sub, Message))
+        cte = str(part.get("Content-Transfer-Encoding", "")).strip().lower()
+        if cte == "base64":
+            compact = re.sub(r"\s+", "", text)
+            try:
+                text = base64.b64decode(compact + "=" * (-len(compact) % 4)).decode("utf-8", errors="replace")
+            except (binascii.Error, ValueError):
+                pass
+        elif cte == "quoted-printable":
+            text = quopri.decodestring(text.encode()).decode("utf-8", errors="replace")
     else:
-        raw = part.get_payload(decode=True) or b""
-        items = HeaderParser().parsestr(raw.decode("utf-8", errors="replace")).items()
-    out: dict = {}
-    for k, v in items:
-        key = k.lower()
-        out[key] = f"{out[key]}, {v}" if key in out else str(v)
-    return out
+        text = (part.get_payload(decode=True) or b"").decode("utf-8", errors="replace")
+    return _fields_from_text(text)
 
 
 _IP_TOKEN = re.compile(r"[0-9a-fA-F:.]{3,45}")
 _FORENSIC_SUBJECT = re.compile(
     r"(?:forensic|failure|auth(?:entication)?[- ]failure)\s+report\b.*?\bfor\s+(?P<domain>[\w.-]+\.[a-z]{2,63})"
-    r"(?:.*?\bfrom\s+(?:ip\s+)?(?P<ip>[0-9a-fA-F:.]{3,45}))?",
+    r"(?:.*?(?:\bfrom\s+(?:ip\s+)?|\bip=)(?P<ip>[0-9a-fA-F:.]{3,45}))?",
     re.I,
 )
+
+
+def _subject_fields(msg: Message) -> dict:
+    """Fallback ARF fields from a subject like "DMARC Failure Report for <domain> (… ip=<ip>)"."""
+    fields = {"feedback-type": "auth-failure"}
+    m = _FORENSIC_SUBJECT.search(str(msg.get("Subject") or ""))
+    if m:
+        fields["reported-domain"] = m.group("domain")
+        if m.group("ip"):
+            fields["source-ip"] = m.group("ip")
+    return fields
 
 
 def _clean_ip(value: str | None) -> str | None:
@@ -280,8 +315,7 @@ def _text_feedback_fields(msg: Message) -> dict:
             continue
         text = (part.get_payload(decode=True) or b"").decode(part.get_content_charset() or "utf-8", errors="replace")
         if re.search(r"^(Feedback-Type|Auth-Failure|Source-IP|Reported-Domain):", text, re.M | re.I):
-            lines = [ln for ln in text.splitlines() if re.match(r"^[A-Za-z][\w-]*:\s", ln)]
-            return {k.lower(): str(v) for k, v in HeaderParser().parsestr("\n".join(lines) + "\n").items()}
+            return _fields_from_text(text)
     return {}
 
 
@@ -300,11 +334,13 @@ def parse_forensic(msg: Message, fallback: dict | None = None) -> ParsedReport:
             if isinstance(inner, Message):
                 headers_text = "".join(f"{k}: {v}\n" for k, v in inner.items())
     if not fields:
-        fields = _text_feedback_fields(msg) or dict(fallback or {})
-    if not fields:
-        raise ParseError("Chýba message/feedback-report časť")
+        fields = _text_feedback_fields(msg)
+    for key, value in (fallback or {}).items():
+        fields.setdefault(key, value)
 
     orig = HeaderParser().parsestr(headers_text) if headers_text else None
+    if not (fields.get("reported-domain") or fields.get("source-ip") or (orig and orig.get("From"))):
+        raise ParseError("Chýba message/feedback-report časť")
     arrival = None
     for candidate in (fields.get("arrival-date"), fields.get("received-date"), orig.get("Date") if orig else None):
         if candidate:
@@ -386,7 +422,7 @@ def extract_from_email(raw: bytes) -> ExtractResult:
               and str(msg.get_param("report-type") or "").lower() == "feedback-report")
     if is_arf or "message/feedback-report" in part_types:
         try:
-            result.reports.append(parse_forensic(msg))
+            result.reports.append(parse_forensic(msg, _subject_fields(msg)))
         except ParseError as exc:
             result.errors.append(str(exc))
         return result
@@ -404,14 +440,8 @@ def extract_from_email(raw: bytes) -> ExtractResult:
     if not result.reports and not result.errors:
         # forensic report without the standard ARF structure: plain-text fields, or at least
         # "… Forensic Report for <domain> from IP <ip>" in the subject
-        subject = str(msg.get("Subject") or "")
-        m = _FORENSIC_SUBJECT.search(subject)
-        if m or _text_feedback_fields(msg):
-            fallback = {"feedback-type": "auth-failure"}
-            if m:
-                fallback["reported-domain"] = m.group("domain")
-                if m.group("ip"):
-                    fallback["source-ip"] = m.group("ip")
+        fallback = _subject_fields(msg)
+        if "reported-domain" in fallback or _text_feedback_fields(msg):
             try:
                 result.reports.append(parse_forensic(msg, fallback))
             except ParseError as exc:

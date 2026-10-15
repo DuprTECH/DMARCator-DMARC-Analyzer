@@ -15,6 +15,9 @@ The running version is shown in the page footer, by `GET /healthz` and by `pytho
   `data/dmarcula.db` keeps being used, `DMARCULA_PASSWORD` still works for `set-password`, and
   stored mailbox credentials and the processed-message marker in Exchange Online are unchanged.
 - Backup cron template takes the database name as a placeholder (`__DB__`).
+- Installer updates no longer stop on `Not possible to fast-forward` after upstream history was
+  rewritten: a checkout without local edits is reset to the repository (the old commit stays in
+  `git reflog`); local edits stop the installer before anything is changed.
 
 ## 1.1.7 – 2026-10-15
 

@@ -101,6 +101,27 @@ make_venv() {
     info "Python packages installed."
 }
 
+# sync_code DIR – point DIR at REPO_URL and bring it to the newest commit. A checkout without local
+# edits whose history was rewritten upstream is reset to it (the old commit stays in `git reflog`);
+# local edits to tracked files stop the installer before anything is changed.
+sync_code() {
+    local dir=$1 owner head
+    owner="$(stat -c %U "$dir")"
+    git ls-remote --exit-code "$REPO_URL" "$BRANCH" >/dev/null 2>&1 \
+        || die "Cannot reach $REPO_URL – nothing was changed. Check network access to GitHub and try again."
+    runuser -u "$owner" -- git -C "$dir" remote set-url origin "$REPO_URL"
+    runuser -u "$owner" -- git -C "$dir" fetch --quiet origin "$BRANCH"
+    if runuser -u "$owner" -- git -C "$dir" merge-base --is-ancestor HEAD "origin/$BRANCH"; then
+        runuser -u "$owner" -- git -C "$dir" merge --quiet --ff-only "origin/$BRANCH"
+    elif [[ -z "$(runuser -u "$owner" -- git -C "$dir" status --porcelain --untracked-files=no)" ]]; then
+        head="$(runuser -u "$owner" -- git -C "$dir" rev-parse --short HEAD)"
+        warn "The history of $REPO_URL was rewritten – resetting $dir to it (previous commit $head stays in git reflog)."
+        runuser -u "$owner" -- git -C "$dir" reset --quiet --hard "origin/$BRANCH"
+    else
+        die "$dir has local changes to tracked files and can't be updated – nothing was changed. See: git -C $dir status"
+    fi
+}
+
 # /etc/systemd/system/dmarcator.service from the template (APP_USER, APP_DIR, APP_PORT)
 render_unit() {
     sed -e "s|__USER__|$APP_USER|g" -e "s|__DIR__|$APP_DIR|g" -e "s|__PORT__|$APP_PORT|g" \
@@ -126,9 +147,8 @@ migrate_from_dmarcula() {
     if [[ ! -d "$old_dir/.git" || ! -f "$old_dir/.env" ]]; then
         die "dmarcula.service points to '$old_dir', which is not an installation (moved by hand?). Restore that path, or remove dmarcula.service, then run the installer again."
     fi
-    # nothing is changed unless the new code can be fetched
-    git ls-remote --exit-code "$REPO_URL" "$BRANCH" >/dev/null 2>&1 \
-        || die "Cannot reach $REPO_URL – nothing was changed. Check network access to GitHub and try again."
+    # new code first: nothing is renamed unless it can be fetched
+    sync_code "$old_dir"
     step "Renaming the DMARCula installation in $old_dir to DMARCator"
     APP_PORT="$(sed -n 's/.*--port \([0-9]*\).*/\1/p' "$old_unit" | head -1)"
     APP_PORT="${APP_PORT:-8000}"
@@ -190,9 +210,6 @@ migrate_from_dmarcula() {
     fi
     if [[ "$(env_get APP_NAME)" == DMARCula ]]; then env_set APP_NAME DMARCator; fi
 
-    # code from the renamed repository
-    as_app git -C "$APP_DIR" remote set-url origin "$REPO_URL"
-    as_app git -C "$APP_DIR" pull --ff-only
     cd "$APP_DIR"
     make_venv
 
@@ -248,8 +265,8 @@ for candidate in "${APP_DIR:-}" /opt/dmarcator /home/dmarc/dmarcator "/home/$APP
         APP_DIR="$candidate"
         APP_USER="$(stat -c %U "$APP_DIR")"
         step "Existing installation found in $APP_DIR – updating"
+        sync_code "$APP_DIR"
         cd "$APP_DIR"
-        as_app git pull --ff-only
         as_app .venv/bin/pip install --quiet --upgrade -r requirements.txt
         systemctl restart dmarcator
         APP_PORT="$(sed -n 's/.*--port \([0-9]*\).*/\1/p' /etc/systemd/system/dmarcator.service | head -1)"
@@ -378,7 +395,7 @@ id "$APP_USER" >/dev/null 2>&1 || useradd --system --no-create-home --home-dir "
 info "System user: $APP_USER"
 install -d -o "$APP_USER" -g "$APP_USER" -m 750 "$APP_DIR"
 if [[ -d "$APP_DIR/.git" ]]; then
-    as_app git -C "$APP_DIR" pull --ff-only
+    sync_code "$APP_DIR"
 else
     as_app git clone --quiet --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
 fi

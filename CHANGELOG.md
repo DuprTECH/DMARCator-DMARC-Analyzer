@@ -6,7 +6,7 @@ The running version is shown in the page footer, by `GET /healthz` and by `pytho
 ## 1.2.0 – 2026-10-15
 
 - **Renamed from DMARCula to DMARCator.** Another DMARC service already uses the DMARCula name.
-  New name, logo (an envelope under a magnifying glass) and brand colour in the UI; repository moved to
+  New name (the logo and favicon stay the same); repository moved to
   `DuprTECH/DMARCator-DMARC-Analyzer` (GitHub redirects the old URL).
 - Service, directory, system user, database, cron file and backups are now named `dmarcator`.
   `install.sh` renames an existing DMARCula installation automatically

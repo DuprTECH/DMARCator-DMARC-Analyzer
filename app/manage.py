@@ -128,7 +128,8 @@ def geoip_refresh() -> int:
     from .analysis.enrich import geoip_available, refresh_geoip
 
     if not geoip_available():
-        print("No readable GeoLite2 database – set GEOIP_COUNTRY_DB / GEOIP_ASN_DB in .env.", file=sys.stderr)
+        print("No readable GeoLite2 database – check GEOIP_COUNTRY_DB / GEOIP_ASN_DB in .env and that the "
+              ".mmdb files exist (geoipupdate -v).", file=sys.stderr)
         return 2
     with session_scope() as db:
         counts = refresh_geoip(db)

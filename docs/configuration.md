@@ -111,15 +111,14 @@ Resetting sign-in settings does not reset display preferences.
 GeoLite2 databases are free after registering at maxmind.com. Download them and point the two
 variables at the `.mmdb` files. Without them, the country map and ASN columns stay empty.
 
-### Setting up GeoLite2 (countries and ASNs)
+### Setting up GeoLite2 (countries map and ASNs)
 
-1. Create a free account at <https://www.maxmind.com/en/geolite2/signup>, then under
-   *Manage License Keys* create a license key. Note the *Account ID*.
-2. Install `geoipupdate` and download both databases (Debian needs the `contrib` component,
-   RHEL-like systems EPEL):
+1. **Account:** free sign-up at <https://www.maxmind.com/en/geolite2/signup>, then
+   *Manage License Keys → Generate new license key*. You need the numeric **Account ID** and the key.
+2. **Download** (Debian: `geoipupdate` is in the `contrib` component; RHEL-like: EPEL):
 
    ```bash
-   sudo apt install geoipupdate          # RHEL / Rocky / Alma: sudo dnf install geoipupdate
+   sudo apt install geoipupdate
    sudo tee /etc/GeoIP.conf >/dev/null <<'CONF'
    AccountID 123456
    LicenseKey YOUR_LICENSE_KEY
@@ -127,22 +126,26 @@ variables at the `.mmdb` files. Without them, the country map and ASN columns st
    DatabaseDirectory /var/lib/GeoIP
    CONF
    sudo chmod 640 /etc/GeoIP.conf
-   sudo mkdir -p /var/lib/GeoIP && sudo geoipupdate && ls -l /var/lib/GeoIP/*.mmdb
-   echo '0 4 * * 3 root /usr/bin/geoipupdate' | sudo tee /etc/cron.d/geoipupdate   # weekly update
+   sudo mkdir -p /var/lib/GeoIP && sudo geoipupdate -v && ls -l /var/lib/GeoIP/*.mmdb
    ```
 
-3. Add the paths to the application's `.env` and restart:
+   The Debian package enables `geoipupdate.timer` for automatic updates; elsewhere add a weekly
+   cron job running `geoipupdate`.
+3. **Configure** the paths in `.env` and restart the service:
 
    ```
    GEOIP_COUNTRY_DB=/var/lib/GeoIP/GeoLite2-Country.mmdb
    GEOIP_ASN_DB=/var/lib/GeoIP/GeoLite2-ASN.mmdb
    ```
 
-4. Country and ASN are stored with each report when it is imported. Fill them in for reports
-   imported earlier with `python -m app.manage geoip-refresh` (see [Operations](operations.md)),
-   then restart the service.
+4. **Backfill** reports imported before (country and ASN are stored at import time):
+   `python -m app.manage geoip-refresh`, then restart the service.
 
-If the database can't be read, the log shows `GeoIP DB … unavailable`.
+| Problem | Fix |
+|---|---|
+| `geoipupdate`: HTTP **401** – account ID or license key could not be authenticated | Account ID must be the number, not the e-mail; a new key needs a few minutes to activate; the key is shown only once – generate a new one if unsure. |
+| `GeoIP DB … unavailable: No such file or directory` | The download hasn't succeeded yet – run `geoipupdate -v`. |
+| Map stays empty although countries are listed | The browser loads the world map from `cdn.jsdelivr.net`; allow it. |
 
 ## Mailbox settings (in the UI)
 

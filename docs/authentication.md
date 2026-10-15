@@ -140,6 +140,12 @@ COOKIE_SECURE=true
 
 The account is identified by `preferred_username` (the UPN, e.g. `john.doe@example.com`).
 
+> **`invalid_key_id: No key for kid …` in the log, *SSO sign-in failed* on the page:** the app
+> (or its enterprise application) has its own token-signing key, e.g. because SAML SSO or a claims
+> mapping policy is configured on it. Entra ID publishes that key only when the discovery URL ends
+> with `?appid=<Client ID>`:
+> `https://login.microsoftonline.com/<TENANT_ID>/v2.0/.well-known/openid-configuration?appid=<CLIENT_ID>`
+
 ## Other OIDC providers
 
 | IdP | `OIDC_DISCOVERY_URL` | Notes |

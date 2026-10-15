@@ -75,6 +75,7 @@ EN: dict[str, str] = {
     "Príliš veľa neúspešných pokusov. Skúste to o 5 minút.": "Too many failed attempts. Try again in 5 minutes.",
     "Nesprávne meno alebo heslo.": "Wrong username or password.",
     "SSO prihlásenie zlyhalo.": "SSO sign-in failed.",
+    "SSO prihlásenie zlyhalo: aplikácia v Entra ID má vlastný podpisový kľúč. Doplňte na koniec Discovery URL ?appid=<Client ID>.": "SSO sign-in failed: the Entra ID app has its own signing key. Append ?appid=<Client ID> to the discovery URL.",
     "Nemáte oprávnenie na prístup do aplikácie.": "You are not allowed to access this application.",
     "Účet je zablokovaný alebo koliduje s iným účtom.": "The account is disabled or conflicts with another account.",
     "Neplatný CSRF token": "Invalid CSRF token",

@@ -25,6 +25,8 @@ The running version is shown in the page footer, by `GET /healthz` and by `pytho
   verified tenant domains via Graph (`Domain.Read.All`); with the mailbox option *Import domains from
   Microsoft 365 automatically* this also runs with every daily DNS check. Imported domains are DNS-checked right away
   and then daily, so domains without DMARC or DKIM show up even before any report arrives.
+- SSO with Entra ID apps that have their own token-signing key (`invalid_key_id`) now shows how to fix
+  it: append `?appid=<Client ID>` to the discovery URL.
 - Messages without a report (ordinary mail, forwards, auto-replies, forensic reports that identify
   no domain, IP or original message) are logged as *info* instead of *error* and can be moved to
   their own folder: new mailbox setting *Move messages without a report to* (empty = failed folder).

@@ -99,6 +99,12 @@ async def oidc_callback(request: Request, db: Session = Depends(get_db)):
         token = await client.authorize_access_token(request)
     except Exception as exc:  # noqa: BLE001
         log.warning("OIDC callback failed: %s", exc)
+        if "invalid_key_id" in str(exc) and "appid=" not in s.oidc_discovery_url:
+            # Entra ID signs tokens of apps with a custom signing key (SAML SSO / claims mapping)
+            # with a key that is only published when the discovery URL carries ?appid=<client id>
+            log.warning("OIDC: add ?appid=%s to the discovery URL", s.oidc_client_id)
+            return render(request, "login.html", {"error": "SSO prihlásenie zlyhalo: aplikácia v Entra ID má vlastný "
+                          "podpisový kľúč. Doplňte na koniec Discovery URL ?appid=<Client ID>."}, 401)
         return render(request, "login.html", {"error": "SSO prihlásenie zlyhalo."}, 401)
     claims = token.get("userinfo") or {}
     username, name, email, groups = oidc.map_claims(dict(claims), s)

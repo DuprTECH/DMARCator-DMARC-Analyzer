@@ -111,6 +111,39 @@ Resetting sign-in settings does not reset display preferences.
 GeoLite2 databases are free after registering at maxmind.com. Download them and point the two
 variables at the `.mmdb` files. Without them, the country map and ASN columns stay empty.
 
+### Setting up GeoLite2 (countries and ASNs)
+
+1. Create a free account at <https://www.maxmind.com/en/geolite2/signup>, then under
+   *Manage License Keys* create a license key. Note the *Account ID*.
+2. Install `geoipupdate` and download both databases (Debian needs the `contrib` component,
+   RHEL-like systems EPEL):
+
+   ```bash
+   sudo apt install geoipupdate          # RHEL / Rocky / Alma: sudo dnf install geoipupdate
+   sudo tee /etc/GeoIP.conf >/dev/null <<'CONF'
+   AccountID 123456
+   LicenseKey YOUR_LICENSE_KEY
+   EditionIDs GeoLite2-Country GeoLite2-ASN
+   DatabaseDirectory /var/lib/GeoIP
+   CONF
+   sudo chmod 640 /etc/GeoIP.conf
+   sudo mkdir -p /var/lib/GeoIP && sudo geoipupdate && ls -l /var/lib/GeoIP/*.mmdb
+   echo '0 4 * * 3 root /usr/bin/geoipupdate' | sudo tee /etc/cron.d/geoipupdate   # weekly update
+   ```
+
+3. Add the paths to the application's `.env` and restart:
+
+   ```
+   GEOIP_COUNTRY_DB=/var/lib/GeoIP/GeoLite2-Country.mmdb
+   GEOIP_ASN_DB=/var/lib/GeoIP/GeoLite2-ASN.mmdb
+   ```
+
+4. Country and ASN are stored with each report when it is imported. Fill them in for reports
+   imported earlier with `python -m app.manage geoip-refresh` (see [Operations](operations.md)),
+   then restart the service.
+
+If the database can't be read, the log shows `GeoIP DB … unavailable`.
+
 ## Mailbox settings (in the UI)
 
 | Field | Graph | IMAP | Description |

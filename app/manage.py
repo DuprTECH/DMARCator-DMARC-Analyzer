@@ -123,6 +123,21 @@ def set_password(username: str, password: str | None = None, create_admin: bool 
     return 0
 
 
+def geoip_refresh() -> int:
+    from .analysis.cache import invalidate
+    from .analysis.enrich import geoip_available, refresh_geoip
+
+    if not geoip_available():
+        print("No readable GeoLite2 database – set GEOIP_COUNTRY_DB / GEOIP_ASN_DB in .env.", file=sys.stderr)
+        return 2
+    with session_scope() as db:
+        counts = refresh_geoip(db)
+    invalidate()
+    print(f"Updated {counts['ips']} source IPs ({counts['with_country']} with a country). "
+          "Restart the service so the dashboard shows the new values right away.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m app.manage", description="DMARCator maintenance")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -140,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("create-admin", help="create a local admin account")
     p.add_argument("username")
     sub.add_parser("auth-reset", help="drop sign-in settings saved in the web UI (back to .env)")
+    sub.add_parser("geoip-refresh", help="write country / ASN from the GeoLite2 databases into stored reports")
     sub.add_parser("version", help="print the version")
     args = ap.parse_args(argv)
 
@@ -168,6 +184,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd == "status":
         return status(args.max_age)
+    if args.cmd == "geoip-refresh":
+        return geoip_refresh()
     if args.cmd == "set-password":
         return set_password(args.username)
     if args.cmd == "create-admin":

@@ -51,3 +51,24 @@ def test_set_password_and_create_admin():
     with session_scope() as db:
         u = db.scalar(select(User).where(User.username == "ops-admin"))
         assert u.role == "admin" and verify_password("AnotherPass22", u.password_hash)
+
+
+def test_geoip_refresh_updates_stored_reports(monkeypatch):
+    from app.analysis import enrich
+
+    init_db()
+    geo_report = AGG.replace(b"<report_id>123</report_id>", b"<report_id>geo-1</report_id>")
+    with session_scope() as db:
+        store_result(db, extract_from_file("geo.xml", geo_report), "test")
+
+    assert manage.main(["geoip-refresh"]) == 2  # no GeoLite2 database configured
+
+    fake = {"40.107.22.5": ("Ireland", "MICROSOFT-CORP"), "185.1.1.1": ("Russia", "Example ISP")}
+    monkeypatch.setattr(enrich, "geoip_available", lambda: True)
+    monkeypatch.setattr(enrich, "geo_lookup", lambda ip: {
+        "country": fake.get(ip, (None, None))[0], "country_code": None, "asn": None, "asn_org": fake.get(ip, (None, None))[1]})
+    assert manage.main(["geoip-refresh"]) == 0
+    with session_scope() as db:
+        rows = db.execute(select(AggregateRecord.source_ip, AggregateRecord.country, AggregateRecord.asn_org)
+                          .join(AggregateReport).where(AggregateReport.report_id == "geo-1")).all()
+    assert {(ip, c, a) for ip, c, a in rows} == {("40.107.22.5", "Ireland", "MICROSOFT-CORP"), ("185.1.1.1", "Russia", "Example ISP")}

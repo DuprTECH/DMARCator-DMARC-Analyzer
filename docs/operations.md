@@ -51,6 +51,7 @@ sudo -u dmarcator .venv/bin/python -m app.manage <command>
 | `status [--max-age MIN]` | prints mailbox status and the newest stored report | **1** if a mailbox failed or hasn't run for MIN minutes (default 60) |
 | `set-password USERNAME` | sets a local account's password (prompts, or reads `DMARCATOR_PASSWORD`) and re-activates it | 2 on error |
 | `create-admin USERNAME` | creates a new local admin account | 2 if it exists |
+| `geoip-refresh` | looks up country / ASN of every known source IP in the GeoLite2 databases and writes them into stored reports | 2 without a readable database |
 
 Examples:
 

@@ -79,6 +79,11 @@ SPF lookups, MX provider), then search and filter domains, compare DNS scores an
 
 ![Domain policy and compliance table](docs/screenshots/domains.png)
 
+The whole page with 76 domains – parked domains without mail, missing DMARC, broken SPF, missing or 1024-bit DKIM,
+and the *Last mail* column (active / inactive / no mail):
+
+![Domains page with all columns and many parked domains](docs/screenshots/domains-full.png)
+
 </details>
 
 <details>

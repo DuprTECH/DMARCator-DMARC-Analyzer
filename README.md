@@ -1,10 +1,15 @@
-# DMARCator – DMARC Analyzer
+# DMARCator – free self-hosted DMARC analyzer and report monitoring
 
-DMARCator is a self-hosted web application that collects DMARC reports from an **Exchange
-Online (Microsoft 365)** mailbox, an IMAP mailbox or manual uploads. It parses them, works out which service
-sent each message (Microsoft 365, SendGrid, Mailchimp, …) and checks the DNS posture of every
-domain. The results are shown on a dashboard built for managing **many domains** at once.
-It's inspired by dmarcian, Valimail, EasyDMARC and parsedmarc.
+**DMARCator is a free, self-hosted DMARC report analyzer** with a web dashboard. It collects
+DMARC aggregate (RUA) and forensic (RUF) reports and SMTP TLS reports (TLS-RPT) from an
+**Exchange Online (Microsoft 365)** mailbox, an IMAP mailbox or manual uploads. It parses them,
+works out which service sent each message (Microsoft 365, Google Workspace, SendGrid, Mailchimp, …)
+and checks SPF, DKIM, DMARC, MTA-STS, TLS-RPT and BIMI DNS records of every domain. The dashboard
+is built for managing **many domains** at once and for moving safely from `p=none` to `p=reject`.
+
+A free, self-hosted alternative to DMARC monitoring services such as dmarcian, Valimail,
+EasyDMARC and PowerDMARC, and a web UI in the spirit of parsedmarc: your reports and mail metadata
+stay on your own server. No subscription, no per-domain or per-message pricing.
 
 > Formerly **DMARCula**. Existing installations are renamed automatically by the installer; see
 > [upgrading from DMARCula](docs/installation.md#upgrading-from-dmarcula-before-120).
@@ -168,6 +173,12 @@ Existing sites, company certificates, Docker, Windows and troubleshooting are co
 
 A local try-out with SQLite and demo data, plus the test suite, is described in
 [docs/architecture.md → Development and tests](docs/architecture.md#development-and-tests).
+
+## Is DMARCator open source?
+
+DMARCator is **free and source-available**: the complete source code is public on GitHub, and any
+company may download, run and modify it for its own use at no cost. It is not "open source" in the
+OSI sense, because the license does not allow redistributing or reselling it (see below).
 
 ## License
 

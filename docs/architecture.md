@@ -3,7 +3,7 @@
 ## Components
 
 ```
-                    ┌──────────────── UnDMARC (one uvicorn process) ──────────────┐
+                    ┌──────────────── DMARCator (one uvicorn process) ──────────────┐
  browser ──HTTPS────┤ FastAPI routes ── Jinja2 templates + ECharts (CDN)           │
   (via nginx/Apache)│   │  auth: local (scrypt) · LDAP (ldap3) · OIDC (authlib)    │
                     │   ▼                                                          │
@@ -140,7 +140,7 @@ What keeps it fast:
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt pytest ruff
 pytest                                    # parser + full app flow (login, CSRF, upload, every page)
-TEST_DATABASE_URL="mysql+pymysql://user:pass@localhost/undmarc_test" pytest   # same suite on an empty MariaDB DB
+TEST_DATABASE_URL="mysql+pymysql://user:pass@localhost/dmarcator_test" pytest   # same suite on an empty MariaDB DB
 ruff check app tests
 python -m app.demo --days 60 --domains 140      # synthetic demo data
 uvicorn app.main:app --reload

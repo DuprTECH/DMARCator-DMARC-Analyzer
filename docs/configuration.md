@@ -1,6 +1,6 @@
 # Configuration reference
 
-UnDMARC reads its settings from environment variables or from a `.env` file in the working
+DMARCator reads its settings from environment variables or from a `.env` file in the working
 directory. Start from [`.env.example`](../.env.example). Variable names are case-insensitive
 and booleans are `true` / `false`.
 
@@ -11,11 +11,11 @@ schránky*). Their credentials are stored encrypted in the database.
 
 | Variable | Default | Description |
 |---|---|---|
-| `APP_NAME` | `UnDMARC` | Name shown in the UI and page titles. |
+| `APP_NAME` | `DMARCator` | Name shown in the UI and page titles. |
 | `DEFAULT_LANGUAGE` | `en` | The UI language follows the browser: Slovak if the browser's preferred language is Slovak, English otherwise. This value is used only when the browser sends no language. A choice made with SK / EN in the top bar is stored in a cookie and takes precedence. |
 | `BASE_URL` | `http://localhost:8000` | Public URL of the app. Used to build the SSO redirect URI. |
 | `SECRET_KEY` | – (**required**) | Signs session cookies. The encryption key for stored mailbox credentials is derived from it. Minimum 16 characters, 48+ random characters recommended. Changing it logs everyone out, and stored mailbox credentials must be re-entered. |
-| `DATABASE_URL` | `sqlite:///./data/undmarc.db` | SQLAlchemy URL, see below. |
+| `DATABASE_URL` | `sqlite:///./data/dmarcator.db` | SQLAlchemy URL, see below. |
 | `SESSION_MAX_AGE_HOURS` | `12` | Absolute session lifetime. |
 | `COOKIE_SECURE` | `false` | Set `true` when served over HTTPS. |
 
@@ -23,9 +23,9 @@ schránky*). Their credentials are stored encrypted in the database.
 
 | Database | `DATABASE_URL` |
 |---|---|
-| MariaDB / MySQL (recommended for many domains) | `mysql+pymysql://undmarc:PASSWORD@localhost:3306/undmarc` |
-| PostgreSQL | `postgresql+psycopg://undmarc:PASSWORD@localhost:5432/undmarc` |
-| SQLite (single file, zero setup) | `sqlite:///./data/undmarc.db` (relative) or `sqlite:////var/lib/undmarc/undmarc.db` (absolute) |
+| MariaDB / MySQL (recommended for many domains) | `mysql+pymysql://dmarcator:PASSWORD@localhost:3306/dmarcator` |
+| PostgreSQL | `postgresql+psycopg://dmarcator:PASSWORD@localhost:5432/dmarcator` |
+| SQLite (single file, zero setup) | `sqlite:///./data/dmarcator.db` (relative) or `sqlite:////var/lib/dmarcator/dmarcator.db` (absolute) |
 
 Notes:
 - **MariaDB:** create the database with `CHARACTER SET utf8mb4`. The app adds
@@ -134,7 +134,7 @@ consecutive runs.
 Enabling retention authorizes irreversible `permanentDelete` calls for up to 500 old messages
 after each successful polling pass. Age is measured from the message's **received date**, not its
 processing date; an old backlog report can therefore be deleted immediately after successful import.
-Only messages explicitly marked by UnDMARC as successfully processed **while retention is enabled**
+Only messages explicitly marked by DMARCator as successfully processed **while retention is enabled**
 are eligible, and only within the configured processed folder (not its subfolders).
 Existing unmarked mail, failed reports and ordinary notifications are not deleted. A report must
 have been recognized and all its reports saved or identified as duplicates before it is marked.

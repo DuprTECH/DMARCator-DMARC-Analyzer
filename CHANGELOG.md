@@ -1,17 +1,17 @@
 # Changelog
 
-All notable changes to UnDMARC (formerly DMARCula). Versions follow [semantic versioning](https://semver.org/).
+All notable changes to DMARCator (formerly DMARCula). Versions follow [semantic versioning](https://semver.org/).
 The running version is shown in the page footer, by `GET /healthz` and by `python -m app.manage version`.
 
 ## 1.2.0 – 2026-10-15
 
-- **Renamed from DMARCula to UnDMARC.** Another DMARC service already uses the DMARCula name.
+- **Renamed from DMARCula to DMARCator.** Another DMARC service already uses the DMARCula name.
   New name, logo (an envelope under a magnifying glass) and brand colour in the UI; repository moved to
-  `DuprTECH/UnDMARC-DMARC-Analyzer` (GitHub redirects the old URL).
-- Service, directory, system user, database, cron file and backups are now named `undmarc`.
+  `DuprTECH/DMARCator-DMARC-Analyzer` (GitHub redirects the old URL).
+- Service, directory, system user, database, cron file and backups are now named `dmarcator`.
   `install.sh` renames an existing DMARCula installation automatically
   ([upgrade notes](docs/installation.md#upgrading-from-dmarcula-before-120)).
-- Compatibility: `APP_NAME=DMARCula` in `.env` is shown as UnDMARC, an existing
+- Compatibility: `APP_NAME=DMARCula` in `.env` is shown as DMARCator, an existing
   `data/dmarcula.db` keeps being used, `DMARCULA_PASSWORD` still works for `set-password`, and
   stored mailbox credentials and the processed-message marker in Exchange Online are unchanged.
 - Backup cron template takes the database name as a placeholder (`__DB__`).

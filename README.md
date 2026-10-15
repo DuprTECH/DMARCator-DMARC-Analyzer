@@ -1,6 +1,6 @@
-# UnDMARC – DMARC Analyzer
+# DMARCator – DMARC Analyzer
 
-UnDMARC is a self-hosted web application that collects DMARC reports from an **Exchange
+DMARCator is a self-hosted web application that collects DMARC reports from an **Exchange
 Online (Microsoft 365)** mailbox, an IMAP mailbox or manual uploads. It parses them, works out which service
 sent each message (Microsoft 365, SendGrid, Mailchimp, …) and checks the DNS posture of every
 domain. The results are shown on a dashboard built for managing **many domains** at once.
@@ -46,7 +46,7 @@ It's inspired by dmarcian, Valimail, EasyDMARC and parsedmarc.
 5. **Track changes over time**, including new failing IPs, service volumes and domain compliance.
 6. **Operate internally** with administrator/viewer roles, local/LDAP/OIDC sign-in, multilingual UI and maintenance tools.
 
-UnDMARC analyzes reports and makes recommendations: it is **not an email gateway**, does not
+DMARCator analyzes reports and makes recommendations: it is **not an email gateway**, does not
 block mail itself, and does not automatically publish DNS changes. Service/threat classification
 and policy readiness are diagnostic guidance, not proof that a message is malicious or that a
 policy change is risk-free. GeoIP describes the sending IP's estimated location, not the sender's
@@ -63,7 +63,7 @@ the demo. They contain **no real customer data**. Long pages are cropped.
 
 Compliance, volume, alignment, services, recommendations, countries and domain trends in one dashboard.
 
-![UnDMARC overview dashboard](docs/screenshots/overview.png)
+![DMARCator overview dashboard](docs/screenshots/overview.png)
 
 <details>
 <summary><strong>Domains — policy, DNS health and compliance</strong></summary>
@@ -143,12 +143,12 @@ Configure Exchange Online (Graph) or IMAP sources and inspect polling results an
 On a Linux server (Debian, Ubuntu, RHEL / Rocky / Alma, Fedora, openSUSE):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/DuprTECH/UnDMARC-DMARC-Analyzer/main/deploy/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/DuprTECH/DMARCator-DMARC-Analyzer/main/deploy/install.sh -o install.sh
 sudo bash install.sh
 ```
 
-The installer asks for the host name and admin password. It then creates the system user `undmarc`
-and installs MariaDB, the application (`/opt/undmarc`), the systemd service, Apache or nginx with HTTPS, and cron jobs for backups.
+The installer asks for the host name and admin password. It then creates the system user `dmarcator`
+and installs MariaDB, the application (`/opt/dmarcator`), the systemd service, Apache or nginx with HTTPS, and cron jobs for backups.
 Running it again updates the application.
 
 Then add the report mailbox in *Administrácia → Poštové schránky*
@@ -171,17 +171,17 @@ A local try-out with SQLite and demo data, plus the test suite, is described in
 
 ## License
 
-UnDMARC is **source-available** under the [PolyForm Internal Use License 1.0.0](LICENSE).
+DMARCator is **source-available** under the [PolyForm Internal Use License 1.0.0](LICENSE).
 Copyright © 2026 DuprTECH.
 
 In plain words (the [LICENSE](LICENSE) text is binding):
 
-- ✅ **Any company or organization may use UnDMARC for its own internal operations, for free.**
+- ✅ **Any company or organization may use DMARCator for its own internal operations, for free.**
   This includes commercial companies. You may install it, run it and adapt it for your own needs.
 - ❌ You may **not** sell, rent, sublicense or redistribute the software, or offer it to third
   parties as a hosted or paid service.
 - ❌ You may **not** publish or distribute it, or a modified version, under another name.
-  "UnDMARC" and "DuprTECH" are names of the author and may not be used for other products or services.
+  "DMARCator" and "DuprTECH" are names of the author and may not be used for other products or services.
   The author attribution shown in the application must not be removed.
 
 For any other use (redistribution, resale, hosting for customers, partnership), contact

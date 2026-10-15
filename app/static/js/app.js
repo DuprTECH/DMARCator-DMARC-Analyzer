@@ -1,4 +1,4 @@
-/* UnDMARC – UI helpers and ECharts builders */
+/* DMARCator – UI helpers and ECharts builders */
 (function () {
   "use strict";
 

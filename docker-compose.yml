@@ -1,10 +1,10 @@
 services:
-  undmarc:
+  dmarcator:
     build: .
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://undmarc:${POSTGRES_PASSWORD:-undmarc}@db:5432/undmarc
+      DATABASE_URL: postgresql+psycopg://dmarcator:${POSTGRES_PASSWORD:-dmarcator}@db:5432/dmarcator
     ports:
       - "8000:8000"
     volumes:
@@ -17,13 +17,13 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: undmarc
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-undmarc}
-      POSTGRES_DB: undmarc
+      POSTGRES_USER: dmarcator
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dmarcator}
+      POSTGRES_DB: dmarcator
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U undmarc"]
+      test: ["CMD-SHELL", "pg_isready -U dmarcator"]
       interval: 5s
       retries: 10
 

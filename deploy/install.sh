@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# UnDMARC installer and updater for Linux servers with systemd.
+# DMARCator installer and updater for Linux servers with systemd.
 #
-#   curl -fsSL https://raw.githubusercontent.com/DuprTECH/UnDMARC-DMARC-Analyzer/main/deploy/install.sh -o install.sh
+#   curl -fsSL https://raw.githubusercontent.com/DuprTECH/DMARCator-DMARC-Analyzer/main/deploy/install.sh -o install.sh
 #   sudo bash install.sh
 #
 # Supported: Debian 11+, Ubuntu 20.04+, RHEL / Rocky / AlmaLinux / CentOS Stream 8+, Fedora, openSUSE / SLES 15.
@@ -9,14 +9,14 @@
 #
 # Every question can be answered in advance with an environment variable (for unattended installs):
 #   DMARC_HOST=dmarc.example.com  WEB=apache|nginx|none  LETSENCRYPT=yes|no  LE_EMAIL=...
-#   ADMIN_PASSWORD=...  ALERT_EMAIL=...  APP_USER=undmarc  APP_DIR=/opt/undmarc  APP_PORT=8000  ASSUME_YES=1
+#   ADMIN_PASSWORD=...  ALERT_EMAIL=...  APP_USER=dmarcator  APP_DIR=/opt/dmarcator  APP_PORT=8000  ASSUME_YES=1
 set -euo pipefail
 
-REPO_URL="${REPO_URL:-https://github.com/DuprTECH/UnDMARC-DMARC-Analyzer.git}"
+REPO_URL="${REPO_URL:-https://github.com/DuprTECH/DMARCator-DMARC-Analyzer.git}"
 BRANCH="${BRANCH:-main}"
-DB_NAME="${DB_NAME:-undmarc}"
-DB_USER="${DB_USER:-undmarc}"
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/undmarc}"
+DB_NAME="${DB_NAME:-dmarcator}"
+DB_USER="${DB_USER:-dmarcator}"
+BACKUP_DIR="${BACKUP_DIR:-/var/backups/dmarcator}"
 
 # ------------------------------------------------------------------ helpers
 if [[ -t 1 ]]; then B=$'\e[1m'; G=$'\e[32m'; Y=$'\e[33m'; R=$'\e[31m'; N=$'\e[0m'; else B=; G=; Y=; R=; N=; fi
@@ -101,33 +101,33 @@ make_venv() {
     info "Python packages installed."
 }
 
-# /etc/systemd/system/undmarc.service from the template (APP_USER, APP_DIR, APP_PORT)
+# /etc/systemd/system/dmarcator.service from the template (APP_USER, APP_DIR, APP_PORT)
 render_unit() {
     sed -e "s|__USER__|$APP_USER|g" -e "s|__DIR__|$APP_DIR|g" -e "s|__PORT__|$APP_PORT|g" \
-        "$APP_DIR/deploy/systemd/undmarc.service" > /etc/systemd/system/undmarc.service
+        "$APP_DIR/deploy/systemd/dmarcator.service" > /etc/systemd/system/dmarcator.service
     systemctl daemon-reload
 }
 
-# render_cron DB_NAME MAILTO DUMP_BINARY – /etc/cron.d/undmarc from the template
+# render_cron DB_NAME MAILTO DUMP_BINARY – /etc/cron.d/dmarcator from the template
 render_cron() {
     sed -e "s|__USER__|$APP_USER|g" -e "s|__DIR__|$APP_DIR|g" -e "s|__DB__|$1|g" -e "s|__MAILTO__|$2|g" \
-        -e "s|mariadb-dump |$3 |" -e "s|/var/backups/undmarc|$BACKUP_DIR|g" \
-        "$APP_DIR/deploy/cron/undmarc" > /etc/cron.d/undmarc
-    chmod 644 /etc/cron.d/undmarc
+        -e "s|mariadb-dump |$3 |" -e "s|/var/backups/dmarcator|$BACKUP_DIR|g" \
+        "$APP_DIR/deploy/cron/dmarcator" > /etc/cron.d/dmarcator
+    chmod 644 /etc/cron.d/dmarcator
 }
 
-# ------------------------------------------------------------------ rename DMARCula → UnDMARC (1.2.0)
+# ------------------------------------------------------------------ rename DMARCula → DMARCator (1.2.0)
 # Installations made before 1.2.0 use the name "dmarcula" for the service, directory, system user,
 # database, cron file and backups. Rename them once; the normal update below then takes over.
 migrate_from_dmarcula() {
     local old_unit=/etc/systemd/system/dmarcula.service old_dir new_dir old_user url sql db_name=dmarcula
-    [[ -f $old_unit && ! -f /etc/systemd/system/undmarc.service ]] || return 0
+    [[ -f $old_unit && ! -f /etc/systemd/system/dmarcator.service ]] || return 0
     old_dir="$(sed -n 's/^WorkingDirectory=//p' "$old_unit" | head -1)"
     if [[ ! -d "$old_dir/.git" || ! -f "$old_dir/.env" ]]; then
         warn "dmarcula.service found, but '$old_dir' is not an installation – not renamed."
         return 0
     fi
-    step "Renaming the DMARCula installation in $old_dir to UnDMARC"
+    step "Renaming the DMARCula installation in $old_dir to DMARCator"
     APP_PORT="$(sed -n 's/.*--port \([0-9]*\).*/\1/p' "$old_unit" | head -1)"
     APP_PORT="${APP_PORT:-8000}"
     local mailto="" dump="mariadb-dump"
@@ -138,55 +138,55 @@ migrate_from_dmarcula() {
     old_user="$(stat -c %U "$old_dir")"
     systemctl disable --now dmarcula >/dev/null 2>&1 || true
 
-    # directory: …/dmarcula → …/undmarc (the virtualenv has absolute paths, so it is rebuilt)
+    # directory: …/dmarcula → …/dmarcator (the virtualenv has absolute paths, so it is rebuilt)
     new_dir="$old_dir"
-    if [[ "$(basename "$old_dir")" == dmarcula && ! -e "$(dirname "$old_dir")/undmarc" ]]; then
-        new_dir="$(dirname "$old_dir")/undmarc"
+    if [[ "$(basename "$old_dir")" == dmarcula && ! -e "$(dirname "$old_dir")/dmarcator" ]]; then
+        new_dir="$(dirname "$old_dir")/dmarcator"
         mv "$old_dir" "$new_dir"
         rm -rf "$new_dir/.venv"
         info "Directory: $new_dir"
     fi
     APP_DIR="$new_dir"
 
-    # system user (and its group) dmarcula → undmarc
+    # system user (and its group) dmarcula → dmarcator
     APP_USER="$old_user"
-    if [[ "$old_user" == dmarcula ]] && ! id undmarc >/dev/null 2>&1; then
-        usermod -l undmarc dmarcula
-        if getent group dmarcula >/dev/null; then groupmod -n undmarc dmarcula; fi
-        APP_USER=undmarc
-        info "System user: undmarc"
+    if [[ "$old_user" == dmarcula ]] && ! id dmarcator >/dev/null 2>&1; then
+        usermod -l dmarcator dmarcula
+        if getent group dmarcula >/dev/null; then groupmod -n dmarcator dmarcula; fi
+        APP_USER=dmarcator
+        info "System user: dmarcator"
     fi
     if [[ "$(getent passwd "$APP_USER" | cut -d: -f6)" == "$old_dir" ]]; then usermod -d "$new_dir" "$APP_USER"; fi
 
-    # MariaDB database and account dmarcula → undmarc (all tables move in one atomic statement)
+    # MariaDB database and account dmarcula → dmarcator (all tables move in one atomic statement)
     url="$(env_get DATABASE_URL)"
     sql="$(command -v mariadb || command -v mysql || true)"
     if [[ "$url" == mysql*://dmarcula:*@*/dmarcula && -n "$sql" ]] && "$sql" -e 'SELECT 1' >/dev/null 2>&1 \
-            && [[ -z "$("$sql" -N -e "SHOW DATABASES LIKE 'undmarc'")" ]]; then
+            && [[ -z "$("$sql" -N -e "SHOW DATABASES LIKE 'dmarcator'")" ]]; then
         local t h renames=""
         for t in $("$sql" -N -e "SELECT table_name FROM information_schema.tables WHERE table_schema='dmarcula'"); do
-            renames+="${renames:+, }\`dmarcula\`.\`$t\` TO \`undmarc\`.\`$t\`"
+            renames+="${renames:+, }\`dmarcula\`.\`$t\` TO \`dmarcator\`.\`$t\`"
         done
-        "$sql" -e "CREATE DATABASE \`undmarc\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+        "$sql" -e "CREATE DATABASE \`dmarcator\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
         if [[ -z "$renames" ]] || "$sql" -e "SET FOREIGN_KEY_CHECKS=0; RENAME TABLE $renames"; then
             for h in localhost 127.0.0.1; do
                 if [[ -n "$("$sql" -N -e "SELECT 1 FROM mysql.user WHERE user='dmarcula' AND host='$h'")" ]]; then
-                    "$sql" -e "RENAME USER 'dmarcula'@'$h' TO 'undmarc'@'$h'; GRANT ALL PRIVILEGES ON \`undmarc\`.* TO 'undmarc'@'$h'"
+                    "$sql" -e "RENAME USER 'dmarcula'@'$h' TO 'dmarcator'@'$h'; GRANT ALL PRIVILEGES ON \`dmarcator\`.* TO 'dmarcator'@'$h'"
                 fi
             done
             "$sql" -e "FLUSH PRIVILEGES; DROP DATABASE \`dmarcula\`"
-            env_set DATABASE_URL "$(sed -e 's|://dmarcula:|://undmarc:|' -e 's|/dmarcula$|/undmarc|' <<<"$url")"
-            if [[ -f "$APP_DIR/.backup.my.cnf" ]]; then sed -i 's/^user=dmarcula$/user=undmarc/' "$APP_DIR/.backup.my.cnf"; fi
-            db_name=undmarc
-            info "Database and account: undmarc"
+            env_set DATABASE_URL "$(sed -e 's|://dmarcula:|://dmarcator:|' -e 's|/dmarcula$|/dmarcator|' <<<"$url")"
+            if [[ -f "$APP_DIR/.backup.my.cnf" ]]; then sed -i 's/^user=dmarcula$/user=dmarcator/' "$APP_DIR/.backup.my.cnf"; fi
+            db_name=dmarcator
+            info "Database and account: dmarcator"
         else
-            "$sql" -e "DROP DATABASE \`undmarc\`"
+            "$sql" -e "DROP DATABASE \`dmarcator\`"
             warn "Database tables could not be moved – the database stays 'dmarcula' (the application works with it)."
         fi
     elif [[ "$url" == mysql*/dmarcula ]]; then
         warn "MariaDB root access not available – the database stays 'dmarcula' (the application works with it)."
     fi
-    if [[ "$(env_get APP_NAME)" == DMARCula ]]; then env_set APP_NAME UnDMARC; fi
+    if [[ "$(env_get APP_NAME)" == DMARCula ]]; then env_set APP_NAME DMARCator; fi
 
     # code from the renamed repository
     as_app git -C "$APP_DIR" remote set-url origin "$REPO_URL"
@@ -194,12 +194,12 @@ migrate_from_dmarcula() {
     cd "$APP_DIR"
     make_venv
 
-    # backups: /var/backups/dmarcula → /var/backups/undmarc
+    # backups: /var/backups/dmarcula → /var/backups/dmarcator
     if [[ -d /var/backups/dmarcula && ! -e "$BACKUP_DIR" ]]; then
         mv /var/backups/dmarcula "$BACKUP_DIR"
         local f
         for f in "$BACKUP_DIR"/dmarcula-*; do
-            if [[ -e "$f" ]]; then mv "$f" "$BACKUP_DIR/undmarc-${f##*/dmarcula-}"; fi
+            if [[ -e "$f" ]]; then mv "$f" "$BACKUP_DIR/dmarcator-${f##*/dmarcula-}"; fi
         done
         chown -R "$APP_USER:$APP_USER" "$BACKUP_DIR"
     fi
@@ -208,11 +208,11 @@ migrate_from_dmarcula() {
         render_cron "$db_name" "$mailto" "$dump"
     fi
 
-    # service dmarcula → undmarc
+    # service dmarcula → dmarcator
     rm -f "$old_unit"
     render_unit
-    systemctl enable undmarc >/dev/null 2>&1
-    info "Service: undmarc (web server configuration is unchanged – it only points to 127.0.0.1:${APP_PORT})"
+    systemctl enable dmarcator >/dev/null 2>&1
+    info "Service: dmarcator (web server configuration is unchanged – it only points to 127.0.0.1:${APP_PORT})"
 }
 
 # ------------------------------------------------------------------ checks
@@ -234,26 +234,26 @@ for p in /usr/local/hestia:HestiaCP /usr/local/vesta:VestaCP /usr/local/cpanel:c
     [[ -e "${p%%:*}" ]] && { PANEL="${p##*:}"; break; }
 done
 
-printf '%sUnDMARC installer%s – %s\n' "$B" "$N" "${PRETTY_NAME:-$ID}"
+printf '%sDMARCator installer%s – %s\n' "$B" "$N" "${PRETTY_NAME:-$ID}"
 cd /    # the app user must be able to access the working directory
 migrate_from_dmarcula
 
 # ------------------------------------------------------------------ existing install → update
-APP_USER="${APP_USER:-undmarc}"
-# /home/dmarc/undmarc: layout used by early versions (as /home/dmarc/dmarcula, renamed above)
-for candidate in "${APP_DIR:-}" /opt/undmarc /home/dmarc/undmarc "/home/$APP_USER/undmarc"; do
-    if [[ -n "$candidate" && -f "$candidate/.env" && -d "$candidate/.git" && -f /etc/systemd/system/undmarc.service ]]; then
+APP_USER="${APP_USER:-dmarcator}"
+# /home/dmarc/dmarcator: layout used by early versions (as /home/dmarc/dmarcula, renamed above)
+for candidate in "${APP_DIR:-}" /opt/dmarcator /home/dmarc/dmarcator "/home/$APP_USER/dmarcator"; do
+    if [[ -n "$candidate" && -f "$candidate/.env" && -d "$candidate/.git" && -f /etc/systemd/system/dmarcator.service ]]; then
         APP_DIR="$candidate"
         APP_USER="$(stat -c %U "$APP_DIR")"
         step "Existing installation found in $APP_DIR – updating"
         cd "$APP_DIR"
         as_app git pull --ff-only
         as_app .venv/bin/pip install --quiet --upgrade -r requirements.txt
-        systemctl restart undmarc
-        APP_PORT="$(sed -n 's/.*--port \([0-9]*\).*/\1/p' /etc/systemd/system/undmarc.service | head -1)"
+        systemctl restart dmarcator
+        APP_PORT="$(sed -n 's/.*--port \([0-9]*\).*/\1/p' /etc/systemd/system/dmarcator.service | head -1)"
         APP_PORT="${APP_PORT:-8000}"
         info "Version: $(as_app .venv/bin/python -m app.manage version)"
-        wait_healthy || die "Service did not come up – check: journalctl -u undmarc -n 50"
+        wait_healthy || die "Service did not come up – check: journalctl -u dmarcator -n 50"
         info "Updated and running."
         exit 0
     fi
@@ -264,7 +264,7 @@ step "A few questions (press Enter for the default)"
 ask DMARC_HOST "Host name of the web interface (DNS must point to this server), e.g. dmarc.example.com" "$(hostname -f 2>/dev/null || hostname)"
 [[ -n "$DMARC_HOST" ]] || die "A host name is required."
 
-ask APP_DIR "Install directory" "/opt/undmarc"
+ask APP_DIR "Install directory" "/opt/dmarcator"
 [[ "$APP_DIR" == *public_html* || "$APP_DIR" == /var/www* ]] && die "Do not install into a web root ($APP_DIR) – .env and the database password would be downloadable."
 
 if [[ -n "$PANEL" ]]; then
@@ -404,11 +404,11 @@ printf '[client]\nuser=%s\npassword=%s\nhost=127.0.0.1\n' "$DB_USER" "$DB_PASS" 
 chown "$APP_USER:$APP_USER" "$APP_DIR/.backup.my.cnf"; chmod 600 "$APP_DIR/.backup.my.cnf"
 
 # ------------------------------------------------------------------ systemd service
-step "systemd service 'undmarc'"
+step "systemd service 'dmarcator'"
 render_unit
-systemctl enable --now undmarc >/dev/null 2>&1
-systemctl restart undmarc
-wait_healthy || die "The service did not start – check: journalctl -u undmarc -n 50"
+systemctl enable --now dmarcator >/dev/null 2>&1
+systemctl restart dmarcator
+wait_healthy || die "The service did not start – check: journalctl -u dmarcator -n 50"
 info "Running on 127.0.0.1:${APP_PORT}."
 env_set ADMIN_PASSWORD ""      # only needed for the first start; the account now exists in the database
 
@@ -416,7 +416,7 @@ env_set ADMIN_PASSWORD ""      # only needed for the first start; the account no
 selinux_proxy() {
     if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then setsebool -P httpd_can_network_connect 1; fi
 }
-render() { sed -e "s|__HOST__|$DMARC_HOST|g" -e "s|__PORT__|$APP_PORT|g" "deploy/$1/undmarc.conf"; }
+render() { sed -e "s|__HOST__|$DMARC_HOST|g" -e "s|__PORT__|$APP_PORT|g" "deploy/$1/dmarcator.conf"; }
 
 if [[ "$WEB" != none ]] && grep -rqsE "^\s*(ServerName|ServerAlias|server_name)\s.*\b${DMARC_HOST//./\\.}\b" \
         /etc/apache2 /etc/httpd /etc/nginx 2>/dev/null \
@@ -429,14 +429,14 @@ case "$WEB:$FAMILY" in
     apache:debian)
         step "Apache"
         a2enmod -q proxy proxy_http headers ssl >/dev/null
-        render apache > /etc/apache2/sites-available/undmarc.conf
-        a2ensite -q undmarc >/dev/null
+        render apache > /etc/apache2/sites-available/dmarcator.conf
+        a2ensite -q dmarcator >/dev/null
         systemctl enable --now apache2 >/dev/null 2>&1
         apache2ctl configtest || die "Apache configuration test failed."
         systemctl restart apache2 ;;
     apache:rhel)
         step "Apache"
-        render apache > /etc/httpd/conf.d/undmarc.conf
+        render apache > /etc/httpd/conf.d/dmarcator.conf
         selinux_proxy
         systemctl enable --now httpd >/dev/null 2>&1
         apachectl configtest || die "Apache configuration test failed."
@@ -444,20 +444,20 @@ case "$WEB:$FAMILY" in
     apache:suse)
         step "Apache"
         for m in proxy proxy_http headers ssl; do a2enmod "$m" >/dev/null 2>&1 || true; done
-        render apache > /etc/apache2/vhosts.d/undmarc.conf
+        render apache > /etc/apache2/vhosts.d/dmarcator.conf
         systemctl enable --now apache2 >/dev/null 2>&1
         apachectl configtest || die "Apache configuration test failed."
         systemctl restart apache2 ;;
     nginx:debian)
         step "nginx"
-        render nginx > /etc/nginx/sites-available/undmarc
-        ln -sf /etc/nginx/sites-available/undmarc /etc/nginx/sites-enabled/undmarc
+        render nginx > /etc/nginx/sites-available/dmarcator
+        ln -sf /etc/nginx/sites-available/dmarcator /etc/nginx/sites-enabled/dmarcator
         systemctl enable --now nginx >/dev/null 2>&1
         nginx -t || die "nginx configuration test failed."
         systemctl reload nginx ;;
     nginx:rhel)
         step "nginx"
-        render nginx > /etc/nginx/conf.d/undmarc.conf
+        render nginx > /etc/nginx/conf.d/dmarcator.conf
         selinux_proxy
         systemctl enable --now nginx >/dev/null 2>&1
         nginx -t || die "nginx configuration test failed."
@@ -465,7 +465,7 @@ case "$WEB:$FAMILY" in
     nginx:suse)
         step "nginx"
         install -d /etc/nginx/vhosts.d
-        render nginx > /etc/nginx/vhosts.d/undmarc.conf
+        render nginx > /etc/nginx/vhosts.d/dmarcator.conf
         systemctl enable --now nginx >/dev/null 2>&1
         nginx -t || die "nginx configuration test failed."
         systemctl reload nginx ;;
@@ -489,8 +489,8 @@ if [[ "$LETSENCRYPT" == yes && ( "$WEB" == apache || "$WEB" == nginx ) ]]; then
         SCHEME=https
         env_set BASE_URL "https://${DMARC_HOST}"
         env_set COOKIE_SECURE true
-        systemctl restart undmarc
-        wait_healthy || warn "Service restart after enabling HTTPS took too long – check journalctl -u undmarc."
+        systemctl restart dmarcator
+        wait_healthy || warn "Service restart after enabling HTTPS took too long – check journalctl -u dmarcator."
     else
         warn "Let's Encrypt failed (is ${DMARC_HOST} public and port 80 reachable?). The site works over HTTP for now."
         warn "For an internal host name use your own certificate – see docs/installation.md (Apache / nginx sections)."
@@ -498,7 +498,7 @@ if [[ "$LETSENCRYPT" == yes && ( "$WEB" == apache || "$WEB" == nginx ) ]]; then
 fi
 
 # ------------------------------------------------------------------ cron
-step "Scheduled jobs (/etc/cron.d/undmarc)"
+step "Scheduled jobs (/etc/cron.d/dmarcator)"
 install -d -o "$APP_USER" -g "$APP_USER" -m 750 "$BACKUP_DIR"
 render_cron "$DB_NAME" "${ALERT_EMAIL:-}" "$(basename "$DUMP_CMD")"
 info "Backups go to ${BACKUP_DIR}."
@@ -523,7 +523,7 @@ if [[ "$WEB" == none || "$WEB" == existing ]]; then
                      proxy_set_header X-Forwarded-Proto \$scheme; client_max_body_size 60m; }
 
     With HTTPS, set BASE_URL=https://${DMARC_HOST} and COOKIE_SECURE=true in ${APP_DIR}/.env
-    and run: systemctl restart undmarc
+    and run: systemctl restart dmarcator
 EOF
 fi
 cat <<EOF
@@ -539,7 +539,7 @@ cat <<EOF
          (guide: docs/authentication.md)
 
     Useful commands:
-      systemctl status undmarc              service state
-      journalctl -u undmarc -f              application log
+      systemctl status dmarcator              service state
+      journalctl -u dmarcator -f              application log
       sudo bash ${APP_DIR}/deploy/install.sh update to the latest version
 EOF

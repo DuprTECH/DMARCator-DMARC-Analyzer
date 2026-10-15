@@ -100,7 +100,7 @@ def status(max_age: int = 60) -> int:
 
 
 def set_password(username: str, password: str | None = None, create_admin: bool = False) -> int:
-    password = password or os.environ.get("UNDMARC_PASSWORD") or os.environ.get("DMARCULA_PASSWORD") or getpass.getpass("New password: ")
+    password = password or os.environ.get("DMARCATOR_PASSWORD") or os.environ.get("DMARCULA_PASSWORD") or getpass.getpass("New password: ")
     if len(password) < 10:
         print("Password must have at least 10 characters.", file=sys.stderr)
         return 2
@@ -124,7 +124,7 @@ def set_password(username: str, password: str | None = None, create_admin: bool 
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="python -m app.manage", description="UnDMARC maintenance")
+    ap = argparse.ArgumentParser(prog="python -m app.manage", description="DMARCator maintenance")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("poll", help="fetch reports from mailboxes now")
     p.add_argument("--source", type=int, help="only this mailbox id")
@@ -144,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     if args.cmd == "version":
-        print(f"UnDMARC {__version__}")
+        print(f"DMARCator {__version__}")
         return 0
     init_db()
     if args.cmd == "auth-reset":

@@ -11,13 +11,13 @@ LEGACY_SQLITE_FILE = "./data/dmarcula.db"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "UnDMARC"
+    app_name: str = "DMARCator"
     default_language: str = "en"  # used when the browser sends no Accept-Language; users can switch in the UI
     display_timezone: str = "UTC"
     display_language: str = "auto"
     base_url: str = "http://localhost:8000"
     secret_key: str = "change-me-please-change-me-please"
-    database_url: str = "sqlite:///./data/undmarc.db"
+    database_url: str = "sqlite:///./data/dmarcator.db"
     session_max_age_hours: int = 12
     cookie_secure: bool = False
 
@@ -72,13 +72,13 @@ class Settings(BaseSettings):
     @classmethod
     def _rename(cls, v: str) -> str:
         # .env files written before the rename still say APP_NAME=DMARCula
-        return "UnDMARC" if v.strip() == LEGACY_APP_NAME else v
+        return "DMARCator" if v.strip() == LEGACY_APP_NAME else v
 
     @field_validator("database_url")
     @classmethod
     def _legacy_sqlite(cls, v: str) -> str:
         # keep using the SQLite file of an installation from before the rename
-        if v == "sqlite:///./data/undmarc.db" and not os.path.exists("./data/undmarc.db") and os.path.exists(LEGACY_SQLITE_FILE):
+        if v == "sqlite:///./data/dmarcator.db" and not os.path.exists("./data/dmarcator.db") and os.path.exists(LEGACY_SQLITE_FILE):
             return "sqlite:///" + LEGACY_SQLITE_FILE
         return v
 

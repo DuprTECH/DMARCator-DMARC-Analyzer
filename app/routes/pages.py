@@ -47,7 +47,8 @@ def dashboard(request: Request, f: Filter = Depends(flt), db: Session = Depends(
             "countries": stats.countries(db, f)[:12],
         }
         insights = stats.insights(db, f, limit=None)
-        return {"data": data, "domains": stats.domains_overview(db, f)[:12], "insights": insights[:10],
+        domains = [d for d in stats.domains_overview(db, f) if not d["ignored"]][:12]
+        return {"data": data, "domains": domains, "insights": insights[:10],
                 "insights_total": len(insights), "new_sources": stats.new_sources(db, f)[:8]}
 
     return render(request, "dashboard.html", _ctx(db, f, **cached(("dashboard", f.start, f.end, f.domain), compute)))
@@ -62,6 +63,8 @@ def domains(request: Request, f: Filter = Depends(flt), db: Session = Depends(ge
             r = readiness.get(d["name"], {})
             d["level"], d["compliance"] = r.get("level"), r.get("compliance")
             d["issues"] = [x["msg"] for x in r.get("recommendations", []) if x["level"] in ("error", "warn")]
+            if d["ignored"]:
+                d["level"], d["issues"] = "ignored", []
         return overview
 
     return render(request, "domains.html", _ctx(db, f, domains=cached(("domains", f.start, f.end), compute),

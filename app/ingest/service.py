@@ -5,7 +5,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..analysis import dns_checks
@@ -371,7 +371,7 @@ def refresh_dns(only_missing: bool = False):
             except Exception:  # noqa: BLE001
                 log.exception("domain sync failed")
         with session_scope() as db:
-            q = select(Domain.id, Domain.name)
+            q = select(Domain.id, Domain.name).where(or_(Domain.ignored.is_(None), Domain.ignored.is_(False)))
             if only_missing:
                 q = q.where(Domain.dns_checked_at.is_(None))
             todo = [(did, name, selectors_for(db, name)) for did, name in db.execute(q)]

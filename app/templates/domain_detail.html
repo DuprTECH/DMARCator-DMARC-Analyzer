@@ -11,6 +11,7 @@
 {% endblock %}
 
 {% block content %}
+{% if dom.ignored %}<div class="alert warn">{{ _('Táto doména sa nekontroluje – nemá dennú kontrolu DNS a nie je v dlaždiciach, grafoch ani odporúčaniach. Reporty sa ukladajú ďalej.') }}</div>{% endif %}
 <div class="grid g-12">
   <div class="card" style="display:flex;gap:18px;align-items:center">
     <span class="grade big {{ dns.grade or '?' }}">{{ dns.grade or '?' }}</span>
@@ -77,9 +78,15 @@
 </div>
 
 {% if user.role == 'admin' %}
-<form class="mt2" method="post" action="/admin/domains/{{ dom.id }}/delete" data-confirm="{{ _('Naozaj odstrániť doménu {d} a VŠETKY jej reporty?', d=dom.name) }}">
+<div class="actions mt2">
+<form method="post" action="/admin/domains/{{ dom.id }}/ignore">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="ignored" value="{{ '0' if dom.ignored else '1' }}">
+  <button class="btn sm" type="submit">{{ _('Znova kontrolovať túto doménu') if dom.ignored else _('Nekontrolovať túto doménu') }}</button>
+</form>
+<form method="post" action="/admin/domains/{{ dom.id }}/delete" data-confirm="{{ _('Naozaj odstrániť doménu {d} a VŠETKY jej reporty?', d=dom.name) }}">
   <input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="btn danger sm" type="submit">{{ _('Odstrániť doménu a jej dáta') }}</button>
 </form>
+</div>
 {% endif %}
 {% endblock %}
 

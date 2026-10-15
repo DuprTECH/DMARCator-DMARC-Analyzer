@@ -4,7 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import BigInteger, case, cast, distinct, exists, func, select
+from sqlalchemy import BigInteger, case, cast, distinct, exists, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from ..models import AggregateRecord as R
@@ -311,8 +311,9 @@ def domains_overview(db: Session, f: Filter) -> list[dict]:
             "grade": (dom.dns or {}).get("grade"),
             "last_seen": dom.last_seen.isoformat() if dom.last_seen else None,
             "spark": [sparks[dom.name].get(d, 0) for d in days],
+            "ignored": bool(dom.ignored),
         })
-    out.sort(key=lambda d: d["total"], reverse=True)
+    out.sort(key=lambda d: (d["ignored"], -d["total"]))
     return out
 
 
@@ -342,7 +343,7 @@ def dns_posture(db: Session) -> dict:
     dkim_keys = dict.fromkeys(("2048", "1024", "weak", "none"), 0)
     spf_lookups = dict.fromkeys(("le7", "8-10", "gt10", "none"), 0)
     mx: dict[str, int] = defaultdict(int)
-    for dns in db.scalars(select(Domain.dns)):
+    for dns in db.scalars(select(Domain.dns).where(not_ignored())):
         for key, _ in DNS_CHECKS:
             checks[key][_check_state(dns, key)] += 1
         dns = dns or {}
@@ -441,9 +442,17 @@ def domain_readiness(db: Session, dom: Domain, f: Filter) -> dict:
     return readiness_all(db, Filter(f.start, f.end, dom.name))[dom.name]
 
 
+def not_ignored():
+    """SQL condition for domains that are monitored (ignored is NULL for rows from older versions)."""
+    return or_(Domain.ignored.is_(None), Domain.ignored.is_(False))
+
+
 def insights(db: Session, f: Filter, limit: int | None = 30) -> list[dict]:
     out = []
+    ignored = set(db.scalars(select(Domain.name).where(Domain.ignored.is_(True))))
     for name, r in readiness_all(db, f).items():
+        if name in ignored:
+            continue
         for rec in r["recommendations"]:
             if rec["level"] in ("error", "warn") or rec.get("ready"):
                 out.append({**rec, "domain": name})

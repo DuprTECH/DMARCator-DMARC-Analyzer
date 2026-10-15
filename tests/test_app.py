@@ -149,3 +149,42 @@ def test_domains_from_csv_and_m365(monkeypatch):
     with session_scope() as db:
         names = set(db.scalars(select(Domain.name)))
     assert {"typed.sk", "csv-one.sk", "csv-two.cz", "tenant-a.sk", "tenant-b.com"} <= names
+
+
+def test_ignored_domain_is_not_checked_or_counted(monkeypatch):
+    from sqlalchemy import select
+
+    from app.analysis import stats
+    from app.db import init_db, session_scope
+    from app.ingest import service
+    from app.models import Domain
+
+    init_db()
+    with session_scope() as db:
+        for name in ("watched-x.sk", "parked-x.sk"):
+            if not db.scalar(select(Domain.id).where(Domain.name == name)):
+                db.add(Domain(name=name))
+    with TestClient(app) as client:
+        login(client)
+        with session_scope() as db:
+            did = db.scalar(select(Domain.id).where(Domain.name == "parked-x.sk"))
+        page = client.get("/domains/parked-x.sk")
+        r = client.post(f"/admin/domains/{did}/ignore", data={"csrf_token": csrf(page.text), "ignored": "1"})
+        assert "sa už nekontroluje" in r.text and "Znova kontrolovať túto doménu" in r.text
+        assert "nekontroluje sa" in client.get("/domains").text
+
+    checked = []
+    monkeypatch.setattr(service.dns_checks, "check_domain", lambda name, sel: checked.append(name) or None)
+    monkeypatch.setattr(service, "sync_tenant_domains", lambda: 0)
+    service.refresh_dns()
+    assert "watched-x.sk" in checked and "parked-x.sk" not in checked
+    with session_scope() as db:
+        total = db.scalar(select(stats.func.count()).select_from(Domain).where(stats.not_ignored()))
+        assert sum(stats.dns_posture(db)["grades"].values()) == total
+
+    with TestClient(app) as client:
+        login(client)
+        page = client.get("/domains/parked-x.sk")
+        client.post(f"/admin/domains/{did}/ignore", data={"csrf_token": csrf(page.text), "ignored": "0"})
+    with session_scope() as db:
+        assert db.get(Domain, did).ignored is False

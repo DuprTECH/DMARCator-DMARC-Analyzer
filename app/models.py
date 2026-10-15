@@ -79,6 +79,8 @@ class Domain(Base):
     dns: Mapped[dict | None] = mapped_column(JSON)
     dns_checked_at: Mapped[datetime | None] = mapped_column(DateTime)
     dns_score: Mapped[int | None] = mapped_column(Integer)
+    # not DNS-checked and left out of tiles, charts and recommendations (reports are still stored)
+    ignored: Mapped[bool | None] = mapped_column(Boolean, default=False)
     note: Mapped[str | None] = mapped_column(Text)
 
 

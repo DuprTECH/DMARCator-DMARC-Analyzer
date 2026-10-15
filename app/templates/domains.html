@@ -13,7 +13,7 @@
 {% block content %}
 {% set by_policy = {'reject': 0, 'quarantine': 0, 'none': 0, '': 0} %}
 {% set by_level = {'error': 0, 'warn': 0, 'ok': 0} %}
-{% for d in domains %}
+{% for d in domains if not d.ignored %}
   {% set _tmp = by_policy.update({(d.policy or ''): by_policy.get(d.policy or '', 0) + 1}) %}
   {% set _tmp = by_level.update({(d.level or 'ok'): by_level.get(d.level or 'ok', 0) + 1}) %}
 {% endfor %}
@@ -82,9 +82,10 @@
         <option value="none">p=none</option><option value="-">{{ _('bez DMARC') }}</option>
       </select>
       <select id="dom-level" aria-label="{{ _('Stav') }}">
-        <option value="">{{ _('Všetky stavy') }}</option><option value="error">{{ _('Chyba') }}</option><option value="warn">{{ _('Upozornenie') }}</option><option value="ok">OK</option>
+        <option value="">{{ _('Všetky stavy') }}</option><option value="error">{{ _('Chyba') }}</option><option value="warn">{{ _('Upozornenie') }}</option><option value="ok">OK</option><option value="ignored">{{ _('Nekontrolované') }}</option>
       </select>
       <label class="toggle"><input type="checkbox" id="dom-active"> {{ _('iba s prevádzkou') }}</label>
+      <label class="toggle"><input type="checkbox" id="dom-hide-ignored" checked> {{ _('nezobrazovať nekontrolované') }}</label>
     </div>
     <span class="hint" id="dom-count" data-of="{{ _('z') }}"></span>
   </div>
@@ -92,10 +93,11 @@
     <thead><tr><th>{{ _('Doména') }}</th><th>{{ _('Stav') }}</th><th>{{ _('Politika') }}</th><th>DNS</th><th class="num">{{ _('Správ') }}</th><th>{{ _('DMARC súlad') }}</th><th class="num">{{ _('Hrozby') }}</th><th>{{ _('Trend') }}</th><th>{{ _('Posledný report') }}</th></tr></thead>
     <tbody>
     {% for d in domains %}
-      <tr data-name="{{ d.name }}" data-policy="{{ d.policy or '-' }}" data-level="{{ d.level or 'ok' }}" data-total="{{ d.total }}">
+      <tr data-name="{{ d.name }}" data-policy="{{ d.policy or '-' }}" data-level="{{ d.level or 'ok' }}" data-total="{{ d.total }}"{% if d.ignored %} style="opacity:.55"{% endif %}>
         <td><a href="/domains/{{ d.name }}?days={{ days }}"><strong>{{ d.name }}</strong></a></td>
         <td title="{{ d.issues|map('t')|join(' · ') }}">
-          {% if d.level == 'error' %}<span class="badge error">{{ _('Chyba') }}</span>{% elif d.level == 'warn' %}<span class="badge warn">{{ _('Upozornenie') }}</span>{% else %}<span class="badge ok">OK</span>{% endif %}
+          {% if d.ignored %}<span class="badge info plain">{{ _('nekontroluje sa') }}</span>
+          {% elif d.level == 'error' %}<span class="badge error">{{ _('Chyba') }}</span>{% elif d.level == 'warn' %}<span class="badge warn">{{ _('Upozornenie') }}</span>{% else %}<span class="badge ok">OK</span>{% endif %}
           {% if d.issues %}<div class="sub ellipsis" style="max-width:240px">{{ d.issues[0]|t }}</div>{% endif %}
         </td>
         <td>{{ policy_badge(d.policy) }}</td>
@@ -147,7 +149,8 @@
 <script>
 (function () {
   const q = document.getElementById("dom-q"), pol = document.getElementById("dom-policy"),
-        lvl = document.getElementById("dom-level"), act = document.getElementById("dom-active");
+        lvl = document.getElementById("dom-level"), act = document.getElementById("dom-active"),
+        hide = document.getElementById("dom-hide-ignored");
   const count = document.getElementById("dom-count");
   const rows = Array.from(document.querySelectorAll("#dom-table tbody tr[data-name]"));
   const params = new URLSearchParams(location.search);
@@ -157,13 +160,15 @@
     let shown = 0;
     rows.forEach((r) => {
       const ok = (!term || r.dataset.name.includes(term)) && (!pol.value || r.dataset.policy === pol.value) &&
-        (!lvl.value || r.dataset.level === lvl.value) && (!act.checked || +r.dataset.total > 0);
+        (!lvl.value || r.dataset.level === lvl.value) && (!act.checked || +r.dataset.total > 0) &&
+        // not-monitored domains stay hidden unless asked for explicitly
+        (!hide.checked || lvl.value === "ignored" || r.dataset.level !== "ignored");
       r.style.display = ok ? "" : "none";
       shown += ok;
     });
     count.textContent = `${shown} ${count.dataset.of} ${rows.length}`;
   }
-  [q, pol, lvl, act].forEach((el) => el.addEventListener("input", apply));
+  [q, pol, lvl, act, hide].forEach((el) => el.addEventListener("input", apply));
   apply();
 })();
 </script>

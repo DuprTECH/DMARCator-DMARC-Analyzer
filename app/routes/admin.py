@@ -348,6 +348,18 @@ def dns_refresh(request: Request):
     return RedirectResponse("/domains", 303)
 
 
+@router.post("/domains/{did}/ignore", dependencies=[Depends(verify_csrf)])
+def domain_ignore(did: int, request: Request, ignored: str = Form("0"), db: Session = Depends(get_db)):
+    dom = db.get(Domain, did)
+    if not dom:
+        raise HTTPException(404)
+    dom.ignored = ignored == "1"
+    db.commit()
+    invalidate()
+    flash(request, f"Doména {dom.name} sa už nekontroluje." if dom.ignored else f"Doména {dom.name} sa znova kontroluje.")
+    return RedirectResponse(f"/domains/{dom.name}", 303)
+
+
 @router.post("/domains/{did}/delete", dependencies=[Depends(verify_csrf)])
 def domain_delete(did: int, request: Request, db: Session = Depends(get_db)):
     dom = db.get(Domain, did)

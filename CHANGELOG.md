@@ -25,6 +25,9 @@ The running version is shown in the page footer, by `GET /healthz` and by `pytho
   verified tenant domains via Graph (`Domain.Read.All`); with the mailbox option *Import domains from
   Microsoft 365 automatically* this also runs with every daily DNS check. Imported domains are DNS-checked right away
   and then daily, so domains without DMARC or DKIM show up even before any report arrives.
+- **Stop monitoring a domain:** switch on the domain detail page. Such a domain gets no DNS check and is
+  left out of tiles, charts and recommendations (reports are still stored); the domain table hides
+  it unless *hide not monitored* is unticked.
 - **DNS charts on the Domains page:** how many domains have DMARC, SPF, DKIM, MTA-STS, TLS-RPT
   and BIMI OK / with warnings / with errors / not set, DNS score A–F, DKIM key length, SPF lookups and
   MX provider.

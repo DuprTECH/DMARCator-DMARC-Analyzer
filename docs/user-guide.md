@@ -45,6 +45,11 @@ Every domain for which at least one report has arrived is listed automatically. 
 - **DNS charts** over all domains, from the latest DNS check: status of DMARC, SPF, DKIM, MTA-STS,
   TLS-RPT and BIMI (OK / warning / error / not set), the A–F DNS score distribution, DKIM key length,
   SPF DNS lookups against the limit of 10, and the mail provider from MX. Hover a bar for counts.
+- **Not monitored domains:** on a domain's detail page an admin can click *Stop monitoring this
+  domain* (e.g. parked domains or foreign domains that show up in reports). It gets no daily DNS check
+  and is left out of tiles, charts, *needs attention* and recommendations; its reports are still stored.
+  The table hides such domains while *hide not monitored* is ticked (default) – untick it, or pick
+  *Not monitored* in the status filter, to see them. *Monitor this domain again* undoes it.
 - **Search and filters** by name, policy, status (*Chyba* error / *Upozornenie* warning / OK),
   and "only with traffic". Useful with 100+ domains.
 - **Stav** (status) column with the most important issue of each domain.

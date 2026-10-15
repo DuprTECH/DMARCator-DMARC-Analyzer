@@ -292,6 +292,8 @@ def domains_overview(db: Session, f: Filter) -> list[dict]:
     for dom, day, total in spark_rows:
         sparks[dom][day.isoformat()] = int(total)
     days = [(f.start + timedelta(days=i)).isoformat() for i in range((f.end - f.start).days + 1)]
+    # last day with mail from the domain over the whole history (not only the selected period)
+    last_mail = dict(db.execute(select(R.domain, func.max(R.day)).where(R.count > 0).group_by(R.domain)).all())
     published = latest_policies(db)
     out = []
     for dom in db.scalars(select(Domain).order_by(Domain.name)):
@@ -317,6 +319,8 @@ def domains_overview(db: Session, f: Filter) -> list[dict]:
             "last_seen": dom.last_seen.isoformat() if dom.last_seen else None,
             "spark": [sparks[dom.name].get(d, 0) for d in days],
             "ignored": bool(dom.ignored),
+            "last_mail": last_mail.get(dom.name).isoformat() if last_mail.get(dom.name) else None,
+            "mail_age": (f.end - last_mail[dom.name]).days if last_mail.get(dom.name) else None,
             "spf": _check_state(dom.dns, "spf"),
             "spf_lookups": spf.get("lookups"),
             "spf_issue": first_issue(spf),

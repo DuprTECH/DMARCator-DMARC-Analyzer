@@ -50,6 +50,11 @@ Every domain for which at least one report has arrived is listed automatically. 
   and is left out of tiles, charts, *needs attention* and recommendations; its reports are still stored.
   The table hides such domains while *hide not monitored* is ticked (default) – untick it, or pick
   *Not monitored* in the status filter, to see them. *Monitor this domain again* undoes it.
+- **SPF / DKIM columns:** OK / warning / error / missing from the latest DNS check; hover for the
+  number of SPF lookups or the DKIM selectors and key lengths.
+- **Last mail:** the last day mail from the domain appeared in any report (whole history):
+  *active* (within 7 days), *inactive* (older) or *no mail* (never – typically a parked domain, a
+  candidate for `p=reject` and a null MX). Filter with *Sending mail*.
 - **Search and filters** by name, policy, status (*Chyba* error / *Upozornenie* warning / OK),
   and "only with traffic". Useful with 100+ domains.
 - **Stav** (status) column with the most important issue of each domain.

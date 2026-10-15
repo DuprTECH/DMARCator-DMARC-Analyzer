@@ -88,16 +88,20 @@
       <select id="dom-level" aria-label="{{ _('Stav') }}">
         <option value="">{{ _('Všetky stavy') }}</option><option value="error">{{ _('Chyba') }}</option><option value="warn">{{ _('Upozornenie') }}</option><option value="ok">OK</option><option value="ignored">{{ _('Nekontrolované') }}</option>
       </select>
+      <select id="dom-mail" aria-label="{{ _('Posledná pošta') }}">
+        <option value="">{{ _('Posielanie pošty – všetky') }}</option><option value="active">{{ _('aktívna (7 dní)') }}</option>
+        <option value="inactive">{{ _('neaktívna') }}</option><option value="none">{{ _('bez pošty') }}</option>
+      </select>
       <label class="toggle"><input type="checkbox" id="dom-active"> {{ _('iba s prevádzkou') }}</label>
       <label class="toggle"><input type="checkbox" id="dom-hide-ignored" checked> {{ _('nezobrazovať nekontrolované') }}</label>
     </div>
     <span class="hint" id="dom-count" data-of="{{ _('z') }}"></span>
   </div>
   <div class="table-wrap"><table id="dom-table">
-    <thead><tr><th>{{ _('Doména') }}</th><th>{{ _('Stav') }}</th><th>{{ _('Politika') }}</th><th>SPF</th><th>DKIM</th><th>DNS</th><th class="num">{{ _('Správ') }}</th><th>{{ _('DMARC súlad') }}</th><th class="num">{{ _('Hrozby') }}</th><th>{{ _('Trend') }}</th><th>{{ _('Posledný report') }}</th></tr></thead>
+    <thead><tr><th>{{ _('Doména') }}</th><th>{{ _('Stav') }}</th><th>{{ _('Politika') }}</th><th>SPF</th><th>DKIM</th><th>DNS</th><th class="num">{{ _('Správ') }}</th><th>{{ _('DMARC súlad') }}</th><th class="num">{{ _('Hrozby') }}</th><th>{{ _('Trend') }}</th><th>{{ _('Posledná pošta') }}</th></tr></thead>
     <tbody>
     {% for d in domains %}
-      <tr data-name="{{ d.name }}" data-policy="{{ d.policy or '-' }}" data-level="{{ d.level or 'ok' }}" data-total="{{ d.total }}"{% if d.ignored %} style="opacity:.55"{% endif %}>
+      <tr data-name="{{ d.name }}" data-policy="{{ d.policy or '-' }}" data-level="{{ d.level or 'ok' }}" data-total="{{ d.total }}" data-mail="{{ 'none' if d.last_mail is none else ('active' if d.mail_age <= 7 else 'inactive') }}"{% if d.ignored %} style="opacity:.55"{% endif %}>
         <td><a href="/domains/{{ d.name }}?days={{ days }}"><strong>{{ d.name }}</strong></a></td>
         <td title="{{ d.issues|map('t')|join(' · ') }}">
           {% if d.ignored %}<span class="badge info plain">{{ _('nekontroluje sa') }}</span>
@@ -112,7 +116,12 @@
         <td>{{ rate_bar(d.pass_pct) }}</td>
         <td class="num">{% if d.threat %}<span style="color:var(--critical-text);font-weight:600">{{ d.threat|num }}</span>{% else %}0{% endif %}</td>
         <td><svg class="spark" data-values="{{ d.spark|jsonify }}"></svg></td>
-        <td class="sub">{{ d.last_seen|dt }}</td>
+        <td title="{{ _('Posledný report') }}: {{ d.last_seen|dt }}">
+          {% if d.last_mail is none %}<span class="badge info plain">{{ _('bez pošty') }}</span>
+          {% elif d.mail_age <= 7 %}<span class="badge ok">{{ _('aktívna') }}</span>
+          {% else %}<span class="badge warn">{{ _('neaktívna') }}</span>{% endif %}
+          {% if d.last_mail %}<div class="sub" style="white-space:nowrap">{{ d.last_mail|dt }} ({{ _('dnes') if d.mail_age <= 0 else _('pred {n} d', n=d.mail_age) }})</div>{% endif %}
+        </td>
       </tr>
     {% else %}
       <tr><td colspan="11">{{ empty(_('Domény sa pridávajú automaticky z prijatých reportov.')) }}</td></tr>
@@ -156,7 +165,7 @@
 (function () {
   const q = document.getElementById("dom-q"), pol = document.getElementById("dom-policy"),
         lvl = document.getElementById("dom-level"), act = document.getElementById("dom-active"),
-        hide = document.getElementById("dom-hide-ignored");
+        hide = document.getElementById("dom-hide-ignored"), mail = document.getElementById("dom-mail");
   const count = document.getElementById("dom-count");
   const rows = Array.from(document.querySelectorAll("#dom-table tbody tr[data-name]"));
   const params = new URLSearchParams(location.search);
@@ -167,6 +176,7 @@
     rows.forEach((r) => {
       const ok = (!term || r.dataset.name.includes(term)) && (!pol.value || r.dataset.policy === pol.value) &&
         (!lvl.value || r.dataset.level === lvl.value) && (!act.checked || +r.dataset.total > 0) &&
+        (!mail.value || r.dataset.mail === mail.value) &&
         // not-monitored domains stay hidden unless asked for explicitly
         (!hide.checked || lvl.value === "ignored" || r.dataset.level !== "ignored");
       r.style.display = ok ? "" : "none";
@@ -174,7 +184,7 @@
     });
     count.textContent = `${shown} ${count.dataset.of} ${rows.length}`;
   }
-  [q, pol, lvl, act, hide].forEach((el) => el.addEventListener("input", apply));
+  [q, pol, lvl, act, hide, mail].forEach((el) => el.addEventListener("input", apply));
   apply();
 })();
 </script>
